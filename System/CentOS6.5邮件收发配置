@@ -1,0 +1,15 @@
+#CentOS-6设置邮件收发
+1，确认是否已经安装mail客户端
+[root@oracledb ~]# mail --help
+mail: illegal option -- -
+Usage: mail -eiIUdEFntBDNHRV~ -T FILE -u USER -h hops -r address -s SUBJECT -a FILE -q FILE -f FILE -A ACCOUNT -b USERS -c USERS -S OPTION users
+cat >>/etc/mail.rc<<end
+set  from=adair0101@163.com smtp=smtp.163.com
+set smtp-auth-user=adair0101@163.com smtp-auth-password="此处填写授权密码" smtp-auth=login
+end
+
+test
+echo test |mail -s test adair0101@163.com
+
+
+
