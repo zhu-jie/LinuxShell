@@ -1,0 +1,657 @@
+考题一：
+如何查看CentOS linux的内核信息
+uname -r #内核
+uname -m #多少位 
+考题二：
+已知文件oldboy.txt内容为
+oldboy
+oldboy is not old
+haiquan
+kangjia
+请过滤出包含oldboy字符串本身的行或haiquan字符串的行
+egrep “oldboy$|haiquan” oldboy.txt
+考题三：
+请把问题二中oldboy.txt文件中仅包含oldboy字符串本身行的oldboy字符串替换为adair（即不替换oldboy is not old中的oldboy字符串）
+[root@lnmp01 ~]# sed 's#oldboy$#adair#g' test 
+adair
+oldboy is not old
+haiquan
+kangjia
+
+[root@lnmp01 ~]# sed -i 's#oldboy$#adair#g' test  
+考题四：
+假如nfs的软件报名为nfs-utils-1.0.9-42.el5.rpm 如何安装该包
+rpm -ivh nfs-utils-1.0.9-42.el5.rpm
+考题五：
+/etc/fstab文件最后两列的数字表示什么意思
+[root@lnmp01 ~]# tail -1 /etc/fstab 
+10.0.0.151:/data                 /mnt                  nfs    defaults        1 1 
+表示备份是否检查
+考题六：
+df -h命令为查看磁盘信息的，某次看到结果如下，请给出卸载nfs文件系统的命令，如果卸载不了如何强制卸载。
+[root@lnmp01 ~]# df -h
+Filesystem                    Size  Used Avail Use% Mounted on
+/dev/mapper/VolGroup-lv_root   18G  2.5G   14G  16% /
+tmpfs                         491M     0  491M   0% /dev/shm
+/dev/sda1                     485M   34M  426M   8% /boot
+10.0.0.151:/data                7.4G	  2.6G  4.5G   37% /mnt
+[root@lnmp01 ~]# umount /mnt
+[root@lnmp01 ~]# umount -lf /mnt
+考题七：
+配置NFS服务时，服务端必须要启动哪些相关服务，请列出需要启动的服务的命令、
+/etc/init.d/rpcbind
+/etc/init.d/nfs
+客户端只需要
+/etc/init.d/rpcbind
+考题八：
+已知如下命令及返回结果，请问echo $user的返回结果为（ 空 ）。
+[root@localhost ~]# cat test.sh 
+user=`whoami`
+[root@localhost ~]# sh test.sh 
+[root@localhost ~]# echo $user
+
+[root@localhost ~]#
+考题九：
+面试及实战考试题：监控web站点目录（/var/html/www）下所有文件是否有被恶意篡改（文件内容被改了），如果有就打印改动的文件名（发邮件），定时任务没3分钟执行一次（10分钟时间完成）
+方法一，使用inotify方法，这里不再写脚本，很简单
+wget http://github.com/downloads/rvoicilas/inotify-tools/inotify-tools-3.14.tar.gz
+tar xf inotify-tools-3.14.tar.gz
+cd inotify-tools-3.14
+./configure --prefix=/usr/local/inotify-tools-3.14
+make && make install
+ln -s /usr/local/inotify-tools-3.14 /usr/local/inotify-tools
+/usr/local/inotify-tools/bin/inotifywait -mrq --timefmt '%d/%m/%y %H:%M' --format '%T %w%f' -e create,delete, attrib /backup
+当监控“/”时爆出了如下错误
+Failed to watch /; upper limit on inotify watches reached!
+解决办法：
+echo 8192000 > /proc/sys/fs/inotify/max_user_watches
+方法二，使用md5校队
+[root@lnmp01 ~]# cat check_web_directory.sh 
+#!/bin/bash
+# Author        : Adair
+# Email         : adair0101@163.com
+# Last modified : 2016-06-10 22:39
+# Filename      : check_web_directory.sh
+# Description   : 
+DIR=/var/html/www
+DBDIR=/server
+md5db=$DBDIR/md5.db
+newdb=$DBDIR/new.db
+diffdb=$DBDIR/diff.db
+checklog=/tmp/check.log
+
+[ ! -d "$DIR" ]&&{
+        echo "This is not web"
+        exit 1
+}
+[ ! -d "$DBDIR" ]&& mkdir $DBDIR -p
+for i in $md5db $newdb $diffdb $checklog
+do 
+        [ ! -d "$i" ]&& touch $i
+done
+
+while true
+do
+        md5sum -c $md5db | grep FAILED >>$checklog 2>&1
+        find $DIR -type f >$newdb
+        diff $newdb $diffdb >>$checklog 2>&1
+        [ -s "$checklog" ]&& \
+        #mail -s "web check $(date +%F)" 00000@qq.com <$checklog
+        echo "aaa"
+        sleep 3
+done
+考题十：
+进程处理
+查看内存由大到小排序：
+ps -e -o "%C : %p : %z : %a"|sort -k5 -nr|head -10
+%C pcpu %CPU
+%a args  COMMAND
+%p pid   PID
+%z vsz   VSZ
+怎样知道某个进程在哪个CPU上运行
+ps -eo pid,args,psr
+按cpu利用率从大到小排序
+ps -e -o "%C : %p : %z : %a"|sort -nr
+查看进程按内存从大到小排列
+ps -e -o "%C : %p : %z : %a"|sort -k5 -nr|head -10
+查看进程运行了多长时间
+ps -eo pid,cmd,etime
+或者
+ps -eo "%p %c %t"
+考题十一：
+通过ifconfig eth0取本机IP的多种方法：
+方法一：
+[root@localhost ~]# ifconfig eth0 |sed -n "2p" |cut -d":" -f2 |cut -d" " -f1
+192.168.1.1
+方法二：纯sed
+[root@localhost ~]#  ifconfig eth0 |sed -n "2p" |sed  's#^.*dr:##g' |sed 's# B.*$##g'
+192.168.1.1 
+[root@localhost ~]#  ifconfig eth0 |sed -n '2p' |sed -r 's#^.*dr:(.*) Bc.*$#\1#g'
+192.168.1.1 
+[root@localhost ~]# ifconfig eth0 |sed -nr '2s#^.*dr:(.*) Bc.*$#\1#gp'
+192.168.1.1 
+[root@localhost ~]# 
+方法三：纯awk
+[root@localhost ~]# ifconfig eth0 |awk -F '[ :]+' 'NR==2 {print $4}'
+考题十二：
+处理下面的文件内容，将域名取出并根据域名进行计数排序处理
+Website.log
+http://www.cnjie.net/index.html
+http://www.cnjie.net/1.html
+http://post.cnjie.net/index.html
+http://mp3.cnjie.net/index.html
+http://www.cnjie.net/3.html
+http://post.cnjie.net/2.html
+解答：
+[root@lnmp01 ~]# cut -d / -f3 Website.log |sort -r|uniq -c
+      3 www.cnjie.net
+      2 post.cnjie.net
+      1 mp3.cnjie.net
+[root@lnmp01 ~]# awk -F "/" '{print $3}' Website.log |sort |uniq -c |sort -r
+      3 www.cnjie.net
+      2 post.cnjie.net
+      1 mp3.cnjie.net
+[root@lnmp01 ~]# awk -F "/" '{S[$3]=S[$3]+1}END{for (k in S) print k,S[k]}' Website.log 
+post.cnjie.net 2
+mp3.cnjie.net 1
+www.cnjie.net 3
+考题十三：
+统计web日志单ip访问请求数排名
+测试数据格式
+[root@mysql ~]# head -1 access-test.log 
+10.0.0.3 - - [21/Mar/2015:07:50:15 +0800] "GET / HTTP/1.1" 200 19 "-" "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36 SE 2.X MetaSr 1.0" "-"
+方法1：
+[root@mysql ~]# awk '{++S[$1]}END{for (adair in S) print adair,S[adair]}' access-test.log |sort -nr -k2
+10.0.0.3 775
+10.0.0.124 5
+10.0.0.132 2
+10.0.0.120 2
+10.0.0.108 2
+10.0.0.100 1
+#提示 $1为第一个域的内容。-k2 为对第二个字段排序，即对数量排序。
+方法2：
+[root@mysql ~]# awk '{print $1}' access-test.log |sort|uniq -c|sort -rn -k1
+    775 10.0.0.3
+      5 10.0.0.124
+      2 10.0.0.132
+      2 10.0.0.120
+      2 10.0.0.108
+      1 10.0.0.100
+
+考题十四：
+统计企业中高并发linux服务器不同网络连接状态对应的数量
+测试数据格式
+[root@mysql ~]# head -3 netstat.log  
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address               Foreign Address             State      
+tcp        0      0 0.0.0.0:80                  0.0.0.0:*                   LISTEN   
+方法1：
+[root@mysql ~]# awk '/^tcp/ {S[$NF]++}END{for (adair in S) print S[adair],adair}' netstat.log |sort -nr -k1
+105 TIME_WAIT
+101 ESTABLISHED
+55 FIN_WAIT2
+7 FIN_WAIT1
+5 SYN_RECV
+5 LISTEN
+3 LAST_ACK
+1 CLOSING
+方法2：
+[root@mysql ~]# awk '/^tcp/ {print $NF}' netstat.log |sort |uniq -c|sort -nr -k1
+    105 TIME_WAIT
+    101 ESTABLISHED
+     55 FIN_WAIT2
+      7 FIN_WAIT1
+      5 SYN_RECV
+      5 LISTEN
+      3 LAST_ACK
+      1 CLOSING
+考题十五：
+分析图片服务日志，把日志（每个图片访问次数*图片大小的总和）排行，取top10，也就是计算每个url的总访问大小
+说明：生产环境应用：这个功能可以用于IDC网站流量带宽很高，然后通过分析服务器日志哪些元素占用流量过大，进而进行优化或裁剪图片，压缩js等措施
+http://oldboy.blog.51cto.com/2561410/909696
+需要输出三个指标：【访问次数】【访问次数*单个文件大小】【文件名可以带URL】
+测试数据如下所示：
+[root@mysql ~]# cat access_2010-12-8.log 
+59.33.26.105 - - [08/Dec/2010:15:43:55 +0800] "GET //back/upload/course/2010-10-25-23-48-59-048-18.jpg HTTP/1.1" 200 44286 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:43:55 +0800] "GET /back/upload/teacher/2010-08-06-11-39-59-0469.jpg HTTP/1.1" 200 10850 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:43:55 +0800] "GET /back/upload/teacher/2010-08-30-13-57-43-06210.jpg HTTP/1.1" 200 11809 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:43:55 +0800] "GET /static/web/coursesort/5.shtml HTTP/1.1" 200 255 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:43:55 +0800] "POST /cms/cmtweb!getCommentListBySource.action HTTP/1.1" 200 433 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:43:56 +0800] "GET /static/images/photos/2.jpg HTTP/1.1" 200 11299 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:43:56 +0800] "GET /static/images/photos/2.jpg HTTP/1.1" 200 11299 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:43:56 +0800] "GET /static/images/photos/2.jpg HTTP/1.1" 200 11299 "http://oldboy.blog.51cto.com/static/web/column/17/index.shtml?courseId=43" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+59.33.26.105 - - [08/Dec/2010:15:44:02 +0800] "GET /static/flex/vedioLoading.swf HTTP/1.1" 200 3583 "http://oldboy.blog.51cto.com/static/flex/AdobeVideoPlayer.swf?width=590&height=328&url=/[[DYNAMIC]]/2" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 2.0.50727; .NET CLR 3.0.4506.2152; .NET CLR 3.5.30729)"
+124.115.4.18 - - [08/Dec/2010:15:44:15 +0800] "GET /?= HTTP/1.1" 200 46232 "-" "-"
+124.115.4.18 - - [08/Dec/2010:15:44:25 +0800] "GET /static/js/web_js.js HTTP/1.1" 200 4460 "-" "-"
+124.115.4.18 - - [08/Dec/2010:15:44:25 +0800] "GET /static/js/jquery.lazyload.js HTTP/1.1" 200 1627 "-" "-"
+124.115.4.18 - - [08/Dec/2010:15:44:25 +0800] "GET /static/js/common.js HTTP/1.1" 200 1861 "-" "-"
+124.115.4.18 - - [08/Dec/2010:15:44:25 +0800] "GET /static/js/default.js HTTP/1.1" 200 2686 "-" "-"
+124.115.4.18 - - [08/Dec/2010:15:44:25 +0800] "GET /static/js/cookieUtil.js HTTP/1.1" 200 955 "-" "-"
+124.115.4.18 - - [08/Dec/2010:15:44:25 +0800] "GET /static/js/jquery-jquery-1.3.2.min.js HTTP/1.1" 200 57254 "-" "-"
+124.115.4.18 - - [08/Dec/2010:15:44:26 +0800] "GET /static/js/addToCart.js HTTP/1.1" 200 6417 "-" "-"
+123.122.65.226 - - [08/Dec/2010:15:44:43 +0800] "GET /static/flex/vedioLoading.swf HTTP/1.1" 304 - "http://oldboy.blog.51cto.com/static/flex/VideoCenter.swf?url=/[[DYNAMIC]]/2" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)"
+123.122.65.226 - - [08/Dec/2010:15:44:43 +0800] "POST /messagebroker/amf HTTP/1.1" 200 183 "http://oldboy.blog.51cto.com/static/flex/VideoCenter.swf?url=/[[DYNAMIC]]/4" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)"
+123.122.65.226 - - [08/Dec/2010:15:44:43 +0800] "POST /messagebroker/amf HTTP/1.1" 200 117 "http://oldboy.blog.51cto.com/static/flex/VideoCenter.swf?url=/[[DYNAMIC]]/4" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1)"
+方法：
+读access_2010-12-8.log 日志第一行：
+$7===//back/upload/course/2010-10-25-23-48-59-048-18.jpg
+$10===44286
+
+要输出的命令：
+第一列：
+array_num["//back/upload/course/2010-10-25-23-48-59-048-18.jpg"]=1
+第二列：
+array_size[$7]=array_size[$7]+$10
+array_size["//back/upload/course/2010-10-25-23-48-59-048-18.jpg"]=44286
+===========================================
+读access_2010-12-8.log 日志第二行：
+$7===/back/upload/teacher/2010-08-06-11-39-59-0469.jpg
+$10===10850
+array_num["//back/upload/course/2010-10-25-23-48-59-048-18.jpg"]=1
+array_num["/back/upload/teacher/2010-08-06-11-39-59-0469.jpg"]=1
+
+第二列：
+array_size[$7]=array_size[$7]+$10
+array_size["//back/upload/course/2010-10-25-23-48-59-048-18.jpg"]=44286
+array_size["/back/upload/teacher/2010-08-06-11-39-59-0469.jpg"]=10850
+两个数组的共同点：key相同
+
+本题需要输出三个指标： 【访问次数】    【访问次数*单个文件大小】   【文件名（可以带URL）】
+awk '{array_num[$7]++;array_size[$7]+=$10}END{for(x in array_num){print array_size[x],array_num[x],x}}' access_2010-12-8.log |sort -rn -k1|head -10 >1.log
+考题十六：
+给出打印test.txt内容时，不包含python字符串的命令
+已知文件test.txt文件内容如下：
+adair
+linux
+python
+方法一：
+[root@localhost data]# head -2 file8
+adair
+linux
+方法二：
+[root@localhost data]# grep -v "python" file8
+adair
+linux
+方法三
+[root@localhost data]# sed -e '/python/d' file8
+adair
+linux
+[root@localhost data]# sed -e /python/d file8
+adair
+linux
+[root@localhost data]# sed -n /[^python]/p file8
+adair
+linux
+方法四：
+[root@localhost data]# awk /[^python]/ file8
+adair
+linux
+案例十七：
+如何过滤出已知当前目录下adair中所有一级目录（提示:不包含adir目录下面目录及隐藏目录，即只能是一级部目录）？
+[root@localhost ~]# mkdir /home/adair/tools -p   ==> 创建测试用的文件夹
+[root@localhost ~]# cd /home/adair/tools/   ==> 进入测试用的文件夹
+ls命令实现
+[root@localhost tools]# ls -l |grep "^d"   ==>   第一种过滤目录的方法ls+grep过滤开头是d的
+drwxr-xr-x 6 1001 1001   4096 Apr 24 03:28 auto
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 conf
+drwxr-xr-x 3 1001 1001   4096 Apr 24 03:28 contrib
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 html
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 man
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 nginx-1.4.7
+drwxr-xr-x 8 1001 1001   4096 Apr 24 03:28 src
+[root@localhost tools]# ls -lF |grep "/$"   ==>   第二种加标识符用F
+drwxr-xr-x 6 1001 1001   4096 Apr 24 03:28 auto/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 conf/
+drwxr-xr-x 3 1001 1001   4096 Apr 24 03:28 contrib/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 html/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 man/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 nginx-1.4.7/
+drwxr-xr-x 8 1001 1001   4096 Apr 24 03:28 src/
+[root@localhost tools]# ls -lp |grep /   ==>  第三种给目录加上"/"
+drwxr-xr-x 6 1001 1001   4096 Apr 24 03:28 auto/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 conf/
+drwxr-xr-x 3 1001 1001   4096 Apr 24 03:28 contrib/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 html/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 man/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 nginx-1.4.7/
+drwxr-xr-x 8 1001 1001   4096 Apr 24 03:28 src/
+
+find命令实现
+[root@localhost tools]# find /home/adair/tools/ -maxdepth 1 -type d   ==>使用find加-maxdepth 表示指定查找的深度类似tree -L 1
+/home/adair/tools/
+/home/adair/tools/html
+/home/adair/tools/src
+/home/adair/tools/contrib
+/home/adair/tools/man
+/home/adair/tools/conf
+/home/adair/tools/auto
+/home/adair/tools/nginx-1.4.7
+[root@localhost tools]# find /home/adair/tools/ -maxdepth 1 -type d ! -name "html"   ==>
+/home/adair/tools/
+/home/adair/tools/src
+/home/adair/tools/contrib
+/home/adair/tools/man
+/home/adair/tools/conf
+/home/adair/tools/auto
+/home/adair/tools/nginx-1.4.7
+
+tree命令实现
+[root@localhost tools]# tree -L 1 -d 或tree -Ld 1
+.
+|-- auto
+|-- conf
+|-- contrib
+|-- html
+|-- man
+|-- nginx-1.4.7
+`-- src
+
+7 directories
+
+sed awk实现方式
+[root@localhost tools]# ls -lF |awk '/^d/'
+drwxr-xr-x 6 1001 1001   4096 Apr 24 03:28 auto/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 conf/
+drwxr-xr-x 3 1001 1001   4096 Apr 24 03:28 contrib/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 html/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 man/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 nginx-1.4.7/
+drwxr-xr-x 8 1001 1001   4096 Apr 24 03:28 src/
+[root@localhost tools]# ls -lF |sed -n '/^d/p'
+drwxr-xr-x 6 1001 1001   4096 Apr 24 03:28 auto/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 conf/
+drwxr-xr-x 3 1001 1001   4096 Apr 24 03:28 contrib/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 html/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 man/
+drwxr-xr-x 2 1001 1001   4096 Apr 24 03:28 nginx-1.4.7/
+drwxr-xr-x 8 1001 1001   4096 Apr 24 03:28 src/
+案例十八：
+删除一个目录下的所有文件，但保留一个指定文件
+假设这个目录是/xx/，里面有file1,file2,file3..file10  十个文件,要求保留file10这个文件
+[root@oldboy xx]# touch file{1..10}
+[root@oldboy xx]# ls
+file1  file10  file2  file3  file4  file5  file6  file7  file8  file9
+方法一：find
+[root@oldboy xx]# ls
+file1  file10  file2  file3  file4  file5  file6  file7  file8  file9
+[root@oldboy xx]# find /xx -type f ! -name "file10"|xargs rm -f
+[root@oldboy xx]# ls
+file10
+[root@oldboy xx]# find /xx -type f ! -name "file10" -exec rm -f {} \;
+[root@oldboy xx]# ls
+file10
+这两种一个通过xargs传参，一个通过find的-exec执行命令参数来完成，都算作find吧
+方法二：rsync
+[root@oldboy xx]# ls
+file1  file10  file2  file3  file4  file5  file6  file7  file8  file9
+[root@oldboy xx]# rsync -az --delete --exclude "file10" /null/ /xx/
+[root@oldboy xx]# ls
+file10
+方法三:开启bash的extglob功能(此功能的作用就是用rm !(*jpg)这样的方式来删除不包括号内文件的文件)
+[root@oldboy xx]# shopt -s extglob
+[root@oldboy xx]# ls
+file1  file10  file2  file3  file4  file5  file6  file7  file8  file9
+[root@oldboy xx]# rm -f !(file10)
+[root@oldboy xx]# ls
+file10
+方法四：
+find ./ -type f|grep -v "\boldboy1\b"|xargs rm -f
+方法五：
+rm -f `ls|grep -v "\boldboy1\b"`
+从运维角度，任何删除性的操作都应该事先备份后在执行或者确认有备份存在。
+案例十九：
+已知apache服务的访问日志按天记录在服务器本地目录/app/logs下，
+由于磁盘空间有限，现在要求只能保留最近7天访问日志！该如何解决？请给出解决办法或配置或处理方式
+（提示：可以从apache服务配置上着手，也可以从生成出来的日志着手。）
+如下生成测试文件
+for n in `seq 14`
+do
+	date -s "2016/04/$n"
+	touch access_www_`(date +%F)`.log
+done
+date -s "2016/04/14"
+
+for n in `seq 9`
+do
+	date -s "03/0$n/14"
+	touch acces_www_`(data +%F)`.log
+done
+[root@localhost test]# ll
+总用量 0
+-rw-r--r--. 1 root root 0 4月   1 00:00 access_www_2016-04-01.log
+-rw-r--r--. 1 root root 0 4月   2 00:00 access_www_2016-04-02.log
+-rw-r--r--. 1 root root 0 4月   3 00:00 access_www_2016-04-03.log
+-rw-r--r--. 1 root root 0 4月   4 00:00 access_www_2016-04-04.log
+-rw-r--r--. 1 root root 0 4月   5 00:00 access_www_2016-04-05.log
+-rw-r--r--. 1 root root 0 4月   6 00:00 access_www_2016-04-06.log
+-rw-r--r--. 1 root root 0 4月   7 00:00 access_www_2016-04-07.log
+-rw-r--r--. 1 root root 0 4月   8 00:00 access_www_2016-04-08.log
+-rw-r--r--. 1 root root 0 4月   9 00:00 access_www_2016-04-09.log
+-rw-r--r--. 1 root root 0 4月  10 00:00 access_www_2016-04-10.log
+-rw-r--r--. 1 root root 0 4月  11 00:00 access_www_2016-04-11.log
+-rw-r--r--. 1 root root 0 4月  12 00:00 access_www_2016-04-12.log
+-rw-r--r--. 1 root root 0 4月  13 00:00 access_www_2016-04-13.log
+-rw-r--r--. 1 root root 0 4月  14 00:00 access_www_2016-04-14.log
+[root@localhost test]# date
+2016年 04月 14日 星期日 16:52:27 CS
+[root@localhost test]# find ./ -type f -name "*.log" -mtime +7  ==> 找出七天前的日志
+./access_www_2016-04-04.log
+./access_www_2016-04-05.log
+./access_www_2016-04-01.log
+./access_www_2016-04-02.log
+./access_www_2016-04-06.log
+./access_www_2016-04-03.log
+[root@localhost test]# find ./ -type f -name "*.log" -mtime +7 |xargs rm f  ==> 删除七天前的日志
+或
+[root@localhost test]# find ./ -type f -name "*.log" -mtime +7 -exec rm -f {} \;  ==> 删除七天前的日志
+案例二十：
+打印配置文件nginx.conf内容的行号及内容，该如何做？
+[root@localhost ~]# seq 10 >> txt.log
+[root@localhost ~]# cat -n txt.log
+[root@localhost ~]# nl txt.log
+[root@localhost ~]# grep -n . /etc/services  ==> 对过滤的内容显示行号
+[root@localhost ~]# awk '{print NR" "$0}' messages ==> NR表示行号，$0表示整行,中间的""表示定界符
+[root@localhost ~]# sed '=' /etc/rsyslog.conf
+案例二十一：
+装完系统后，希望网络文件共享服务NFS，仅在3级别上开机自动启动，如何做呢？
+[root@localhost ~]# chkconfig --level 3 nfs on
+
+chkconfig管理的要求：
+/etc/init.d/ssh restart
+案例二十二：
+/etc/目录为linux系统默认的配置文件及服务启动命令的目录
+a,请用tar打包/etc/整个目录（打包及压缩）
+b,请用tar打包/etc/整个目录（打包及压缩，但需要排除/etc/services文件）
+c,请把a点命令的压缩包，解压到/tmp指定目录下（最好只用tar命令实现）
+a：
+[root@localhost ~]# tar zcvf etc.tar.gz /etc <== 打包
+[root@localhost ~]# tar tf etc.tar.gz  <== 查看包内容
+b:
+[root@localhost ~]# tar zcvf etc.tar.gz --exclude=/etc/services /etc
+也可以将要排除的内容放到一个文件里，在通过X来接这个文件
+[root@localhost ~]# echo "/etc/services" >> paichu.list
+[root@localhost ~]# tar zcvfX etc.tar.gz paichu.list /etc
+c:
+[root@localhost ~]# tar xf etc.tar.gz   <==解压
+[root@localhost ~]# tar xf etc.tar.gz -C /tmp <==C指定解压目录
+案例二十三：
+已知如下命令及结果
+[root@localhost ~]# echo "I am adair myqq is 797979797" >> adair.txt
+[root@localhost ~]# cat adair.txt
+I am adair myqq is 797979797
+[root@localhost ~]#
+现在需从文件中过滤出"adair"和"797979797"
+awk的实现方式：
+[root@localhost ~]# awk '{print $3" "$6}' adair.txt
+adair 797979797
+[root@localhost ~]# awk '{print $3","$6}' adair.txt
+adair,797979797
+cut的实现方式：
+[root@localhost ~]# cut -d" " -f3,6 adair.txt
+adair 797979797
+[root@localhost ~]# cut -c 6-11,20- adair.txt
+adair 797979797
+已知如下命令及结果
+[root@localhost ~]# echo "I am adair,myqq is 797979797" >> adair1.txt
+现在需从文件中过滤出"adair"和"797979797"
+如果需要从文件中过滤出"adair,792416906"字符串，请再给出命令
+[root@localhost ~]# cut -c 6-10,19- adair1.txt
+adair 797979797
+[root@localhost ~]# sed 's#,# #g' adair1.txt |cut -d" " -f3,6
+adair 797979797
+案例二十四：
+显示/etc/services有多少行
+方法一：
+[root@localhost ~]# wc -l /etc/services
+10774 /etc/services
+方法二：
+[root@localhost ~] cat -n /etc/services |tail -1
+ 10774	iqobject        48619/udp               # iqobject
+方法三：
+[root@localhost ~]# awk '{print NR $0}' /etc/services |tail -1
+10774iqobject        48619/udp               # iqobject
+方法四：
+[root@localhost ~]# grep -n '.' /etc/services |tail -1
+10774:iqobject        48619/udp               # iqobject
+案例二十五：
+过滤出/etc/services中包含3306和1521端口的行
+[root@localhost ~]# grep -E "3306|1521" /etc/services
+mysql           3306/tcp                        # MySQL
+mysql           3306/udp                        # MySQL
+ncube-lm        1521/tcp                # nCube License Manager
+ncube-lm        1521/udp                # nCube License Manager
+[root@localhost ~]# egrep "3306|1521" /etc/services
+mysql           3306/tcp                        # MySQL
+mysql           3306/udp                        # MySQL
+ncube-lm        1521/tcp                # nCube License Manager
+ncube-lm        1521/udp                # nCube License Manager
+案例二十六：
+如果向磁盘写入数据提示如下错误：No Space left on device 通过df -h查看磁盘空间，发现没满，请问可能原因是什么？
+解答：可能是inode数量被耗尽了
+df -i 查看是否耗尽了inode数量
+企业工作中邮件临时队列/var/spool/clientmquene这里很容易被大量小文件占满，导致No Space left on device的错误。clientmquene目录只有安装了sendmail服务才会有。
+CentOS5.8默认就安装了sendmail
+CentOS6.6默认没有安装sendmail /var/spool/postfix/maildrop
+案例二十七：
+一个100M（100000K）的磁盘分区，分别写入1k的文件或写入1M的文件，分别可以写多少个？
+解答思想：
+a:Inode是存放文件属性信息的，默认大小128nyte（CentOS5.8）256byte（CentOS6.4）
+b:Block是存放文件实际内容的，默认大小1K（boot）或4K（非系统分区默认给4K）
+c:一个文件至少要占用一个inode及一个block
+d:默认分区常规情况下，inode数量是足够的。而block数量消耗的会更快
+正确解答：
+1，默认分区情况下，对大文件来讲inode是足够的。而block数量消耗的会更快。BLOCK为4K的情况，1m的文件不hi有磁盘浪费的情况，所以文件数量大概为100/1=100个
+2，对于小文件0.1k，inode会消耗的更快。默认分区的时候block数量是大于inode数量的
+每个小文件都会占用一个inode和一个block。所以最终文件的数量：inode会先消耗完，文件总量是inode的数量
+案例二十八：
+磁盘空间占满的解决方法
+问题：硬盘显示被写满，但是用du -sh /*查看时占用硬盘空间之和还远小于硬盘大小
+即找不到硬盘分区是怎么被写满的。
+
+相关日志如下：
+█ 查看硬盘分区大小
+[root@www ~]# cat /etc/redhat-release 
+CentOS release 5.3 (Final)
+[root@www ~]# df -h
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda3             117G  111G     0 100% /
+/dev/sda1             145M   12M  126M   9% /boot
+tmpfs                 3.0G     0  3.0G   0% /dev/shm
+这是一台web服务器（apache+tomcat+mysql）
+通过dh -h命令查看 总大小117G，使用了111G
+[root@www /]# fdisk -l
+Disk /dev/sda: 146.8 GB, 146815733760 bytes
+255 heads, 63 sectors/track, 17849 cylinders
+Units = cylinders of 16065 * 512 = 8225280 bytes
+   Device Boot      Start         End      Blocks   Id  System
+/dev/sda1   *           1          19      152586   83  Linux
+/dev/sda2              20        2108    16779892+  82  Linux swap / Solaris
+/dev/sda3            2109       17849   126439582+  83  Linux
+[root@www /]# fdisk -l /dev/sda3
+Disk /dev/sda3: 129.4 GB, 129474132480 bytes
+255 heads, 63 sectors/track, 15741 cylinders
+Units = cylinders of 16065 * 512 = 8225280 bytes
+Disk /dev/sda3 doesn't contain a valid partition table
+==========================================================================================
+█ 使用du命令查看到底哪些目录占用了空间
+[root@www /]# du -sh /*
+8.6M    /bin
+6.1M    /boot
+2.8G    /data ===》这里是DB目录
+124K    /dev
+60M     /etc
+1.6G    /home ===》这里是日志目录
+120M    /lib
+24M     /lib64
+16K     /lost+found
+8.0K    /media
+0       /misc
+12K     /mnt
+0       /net
+8.0K    /opt
+0       /proc
+614M    /root
+35M     /sbin
+8.0K    /selinux
+24K     /server
+8.0K    /srv
+0       /sys
+24K     /tmp
+2.5G    /usr
+29G     /var  ==》这里是www目录
+可以看出，上面所有目录之和 远小于总的空间占用111G，是什么占用了硬盘，还查不到呢？
+---------------
+解答：
+出现上面问题原因：
+在apache/tomcat服务在运行状态下，清空了运行服务的日志，这里是清理了当天或正在写入的apache及tomcat的日志文件，从而导致了上面问题。（有关原理细节见下文）
+引申下：
+一般情况下，大多数服务（包括脚本）在运行时，是不能删除当前正在写入的日志文件的。这点请大家要记牢。
+本文的解决办法：
+查找机器自身的服务，然后重起apache和tomcat。
+重起apache后：
+[root@www 07]# df -h
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda3             117G  109G  2.3G  98% /
+/dev/sda1             145M   12M  126M   9% /boot
+tmpfs                 3.0G     0  3.0G   0% /dev/shm
+重起tomcat后：
+[root@www ~]# df -h
+Filesystem            Size  Used Avail Use% Mounted on
+/dev/sda3             117G   38G   74G  34% /
+/dev/sda1             145M   12M  126M   9% /boot
+tmpfs                 3.0G     0  3.0G   0% /dev/shm
+案例二十九：
+在ifconfig eth0中取出地址
+方法一：
+[root@localhost ~]# ifconfig eth0 |sed -n "2p" |cut -d":" -f2 |cut -d" " -f1
+192.168.1.1
+方法二：纯sed
+[root@localhost ~]#  ifconfig eth0 |sed -n "2p" |sed  's#^.*dr:##g' |sed 's# B.*$##g'
+192.168.1.1
+[root@localhost ~]#  ifconfig eth0 |sed -n '2p' |sed -r 's#^.*dr:(.*) Bc.*$#\1#g'
+192.168.1.1
+[root@localhost ~]# ifconfig eth0 |sed -nr '2s#^.*dr:(.*) Bc.*$#\1#gp'
+192.168.1.1
+[root@localhost ~]#
+方法三：纯awk
+[root@localhost ~]# ifconfig eth0 |awk -F '[ :]+' 'NR==2 {print $4}'
+案例三十：
+计划任务讲解：
+a,30 3,12 * * * /bin/sh /scripts/adair.sh
+(每天凌晨3点和中午12点的半点时刻执行任务)
+b,30 */6 * * * /bin/sh /scripts/adair.sh
+(每隔6个小时的半点时刻执行任务)
+c,30 8-18/2 * * * /bin/sh /scripts/adair.sh
+(早上8点到下午18点之间每隔2小时的30分钟时刻执行一次任务)
+d,30 21 * * * /bin/apachectl graceful
+(21：30重启apache服务)
+e,45 4 1,10,22 * * /bin/apachectl graceful
+(每月1，10，22日的凌晨4：45分重启apache)
+f,10 1 * * 6，0 /bin/apachectl graceful
+(每周六，周日的凌晨1：10分重启apache)
+g,0,30 18-23 * * * /bin/apachectl graceful
+(每天18点到23点的每隔30分钟执行一次重启)
+h,00 */1 * * * /bin/apachectl graceful
+(每隔一小时整点重启apache)
+i，00 11 * 4 1-3 /bin/apachectl graceful
+(四月的每周一周三的上午11点整重启apache)
