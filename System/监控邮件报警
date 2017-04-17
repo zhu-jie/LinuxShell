@@ -1,0 +1,87 @@
+使用Shell或Python写一个脚本，CPU使用率超过80%或硬盘超过85%邮件报警。
+1，：
+CPU监控：top -n 1 查看1次就退出
+Cpu(s): 0.3%us,  0.3%sy,  0.0%ni, 99.3%id,  0.0%wa, 0.0%hi,  0.0%si,  0.0%st
+ 99.3%id  是未使用的CPU，剩余的都是使用的。
+获取使用率
+top -n 1|awk -F '[, %]+' 'NR==3 {print 100-$11}'
+2：
+磁盘监控先监控/
+df -h|awk -F '[ %]+'  '/\/$/{print $5}'
+3：使用bc进行含有小数的大小判断
+[root@localhost ~]# echo "0.1>0.01"|bc
+1
+[root@localhost ~]# echo "0.1>0.2"|bc
+0
+[root@localhost ~]# echo "5.6>10.3"|bc
+0
+
+具体步骤：
+1. 配置/etc/mail.rc支持发邮件
+见CentOS6.5邮件收发配置
+2。脚本
+#!/bin/bash
+LANG=en_US.UTF-8
+cpuUsed=`top -n 1|awk -F '[, %]+' 'NR==3 {print100-$11}'`
+diskUsed=$(df -h|awk -F '[ %]+'  '/\/$/{print $5}')
+logFile=/tmp/jiankong.log
+  
+function Sendmail(){
+    mail -s"监控报警" user@qq.com <$logFile
+}
+  
+function check(){
+    if [ `echo"$cpuUsed>80"|bc` -eq 1 -o $diskUsed -ge 85 ];then
+       echo"CPU使用率：${cpuUsed}%，磁盘使用率：${diskUsed}%">$logFile
+      Sendmail
+    fi
+}
+  
+function main(){
+    check
+}
+ 
+main
+
+
+
+3，python实现方式，注意需要安装psutil
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import psutil   # python获取系统信息模块，需要额外安装
+import smtplib  # 发送邮件
+from email.mime.text import MIMEText  # 构造纯文本邮件
+from email.utils import formataddr # 格式化邮件地址
+ 
+cpuUsed=psutil.cpu_percent(interval=1)
+diskUsed=psutil.disk_usage('/').percent
+ 
+def structural_mail(text, recipient):
+    msg = MIMEText(text, 'plain', 'utf-8')
+    msg['From'] = formataddr(["张耀", 'user@oldboyedu.com'])  # 发件人
+    msg['To'] = formataddr([recipient, recipient])  # recipient收件人
+    msg['Subject'] = "监控报警"  # 主题
+    return msg
+ 
+ 
+def send_mail(text, recipient):
+    from_addr = '发送邮箱账号'
+    password = '密码'
+    smtp_server = 'smtp.exmail.qq.com'
+    smtp_port = 25
+    to_addr = []  # 可以一次发给多个人,因此传入一个列表
+    to_addr.append(recipient)
+ 
+    msg = structural_mail(text, recipient)
+ 
+    server = smtplib.SMTP(smtp_server, smtp_port)
+    server.login(from_addr, password) 
+    server.sendmail(from_addr, to_addr, msg.as_string())
+ 
+ 
+def check():
+    if cpuUsed <= 80 or diskUsed >= 85:
+       send_mail('CPU使用率：{}%，磁盘使用率：{}%'.format(cpuUsed, diskUsed),'12345678@qq.com')
+ 
+if __name__ == '__main__':
+    check()
