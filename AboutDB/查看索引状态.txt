@@ -1,0 +1,2 @@
+select index_name,STATUS from user_indexes where index_name like '%MISC%'
+

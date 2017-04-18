@@ -1,0 +1,750 @@
+sed及awk部分为本人学习笔记，呵呵，自己写的哦
+
+vi 中删除当前行到最后一行：vi 状态下输入"  :.,$d
+
+
+sed命令：
+格式：sed -e 's/aaa/bbb/g' -n -e '/XXX/p' -e '/YYY/d' filename
+
+命令参数：
+-e 执行多个SED命令
+s替换
+g全文
+-n显示过滤后的部分，否则会重复显示一次原文
+p显示出来print
+d删除
+\把元字符转化（$,\.,\^,\/）
+
+
+正则表格式：
+/^$/   空行
+/^.*/  一整行
+/*/    一个或多个空格
+/[a-zA-Z][a-zA-Z]*:W[a-zA-Z0-9][a-zA-Z0-9\.]*.*/   有效的URL
+
+去掉空行：%!grep -v '^$'
+去掉当前空行：/^$/d
+
+
+ $ sed -e 's/foo/bar/' myfile.txt  
+
+
+上面的命令将 myfile.txt 中每行第一次出现的 'foo'（如果有的话）用字符串 'bar' 替换，然后将该文件内容输出到标准输出。请注意，我说的是 每行第一次出现，尽管这通常不是您想要的。在进行字符串替换时，通常想执行全局替换。也就是说，要替换每行中的 所有出现，如下所示： 
+
+$ sed -e 's/foo/bar/g' myfile.txt  
+
+
+
+
+
+
+在最后一个斜杠之后附加的 'g' 选项告诉 sed 执行全局替换。
+
+vi 中删除当前行到最后一行：vi 状态下输入"  :.,$d
+
+关于 's///' 替换命令，还有其它几件要了解的事。首先，它是一个命令，并且只是一个命令，在所有上例中都没有指定地址。这意味着，'s///' 还可以与地址一起使用来控制要将命令应用到哪些行，如下所示：
+
+ $ sed -e '1,10s/enchantment/entrapment/g' myfile2.txt 
+  
+
+
+上例将导致用短语 'entrapment' 替换所有出现的短语 'enchantment'，但是只在第一到第十行（包括这两行）上这样做。
+
+ $ sed -e '/^$/,/^END/s/hills/mountains/g' myfile3.txt 
+  
+
+
+该例将用 'mountains' 替换 'hills'，但是，只从空行开始，到以三个字符 'END' 开始的行结束（包括这两行）的文本块上这样做。
+
+关于 's///' 命令的另一个妙处是 '/' 分隔符有许多替换选项。如果正在执行字符串替换，并且规则表达式或替换字符串中有许多斜杠，则可以通过在 's' 之后指定一个不同的字符来更改分隔符。例如，下例将把所有出现的 /usr/local 替换成 /usr：
+
+ $ sed -e 's:/usr/local:/usr:g' mylist.txt  
+
+
+在该例中，使用冒号作为分隔符。如果需要在规则表达式中指定分隔符字符，可以在它前面加入反斜杠。
+
+
+删除 
+INITlog 中的非scp局的命令:sed -e '/INIT\/[a-z][a-z][0-9]/d' 1 >2
+
+
+ls | awk '/09.0510/ {print}'|head -5000|awk '{print "gzip " $0}'|sh &
+ls | awk '/09.0511/ {print}'|grep -v gz|awk '{print "gzip " $0}'|sh &
+
+awk '{if($1>$2)print $0}' a
+awk '/20/{print $0}' a 
+awk '/20/' a
+awk '{if ($1>a) print $0}' a=20 a
+
+例：
+$cat tt
+aaa XXX
+aaa YYY
+bbb XXX
+bbb YYY
+$sed -e 's/aaa/bbb/g' -n -e '/XXX/p' -e '/YYY/d' tt
+bbb XXX
+bbb XXX
+hos08:/u1/hos08/tmp>
+注解：把aaa替换成bbb，过滤包含XXX的行，删除包含YYY的行。
+
+ 
+
+
+awk （一）
+
+<                  小于
+>                  大于
+<=                 小于等于
+>=                 大于等于
+==                 等于
+!=                 不等于
+value~/pattern/    如果value匹配样式，为真
+value!~/pattern/   如果value不匹配样式，为真
+&&                 A与B
+||                 A或B
+
+使用 printf语句中参数可以使段落整齐。
+$cat tt
+aaa XXX 100 5
+aaa YYY  98 9
+bbb XXX 111 3
+bbb YYY  99 8
+过滤包含aaa的行并以,"TTT",格式显示出来
+$awk ' /aaa/ {print ,"TTT",;} ' tt
+XXX TTT aaa
+YYY TTT aaa
+
+过滤第三列为2位数字，并且第四列大于5的行
+$awk ' ( ~ /[0-9][0-9]/ ) && ( > 5 ) { print ,,, ;}' tt
+aaa YYY 98 9
+bbb YYY 99 8
+把所列行后边加*号
+$awk ' ( ~ /[0-9][0-9]/ ) && ( > 5 ) { printf "%s\t%s\n" ,,"*";}' tt
+aaa YYY  98 9   *
+bbb YYY  99 8   *
+把第一列替换成nnn并在结尾加TTT，再把第一列替换成uuu直接显示。
+$awk ' = "nnn" { printf "%s\t%s\n" , , "TTT" ; } = "uuu" { print ; } ' tt
+nnn XXX 100 5   TTT
+uuu XXX 100 5
+nnn YYY 98 9    TTT
+uuu YYY 98 9
+nnn XXX 111 3   TTT
+uuu XXX 111 3
+nnn YYY 99 8    TTT
+uuu YYY 99 8
+针对上一行加入了next，其功能是如果第一段命令为真则跳过以后段直接重新开始检查
+$awk ' = "nnn" { printf "%s\t%s\n" , , "TTT" ;next; } = "uuu" { print ; } ' tt
+nnn XXX 100 5   TTT
+nnn YYY 98 9    TTT
+nnn XXX 111 3   TTT
+nnn YYY 99 8    TTT
+把第三列大于等于100的行加TTT，再把第四列大于等于5的行连同上一查询结果一同列出来。
+$awk ' >= 100 { printf "%s\t%s\n" ,,"TTT" ; } >= 5 { print ; } ' tt
+aaa XXX 100 5   TTT
+aaa XXX 100 5
+aaa YYY  98 9
+bbb XXX 111 3   TTT
+bbb YYY  99 8
+把第三列大于等于100的行加TTT，再把小于100的行连同上一查询一同列出来。
+$awk ' >= 100 { printf "%s\t%s\n" ,,"TTT" ; } < 100 { print ; } ' tt
+aaa XXX 100 5   TTT
+aaa YYY  98 9
+bbb XXX 111 3   TTT
+bbb YYY  99 8
+ 
+ 
+搭配其他命令来使用。
+$w
+  3:16pm  up 4 days,  8:34, 30 users,  load average: 0.97, 0.78, 0.80
+USER     TTY      FROM              LOGIN@   IDLE   JCPU   PCPU  WHAT
+usr0809  pts/1    172.26.4.52       2:31pm 23:52   0.54s  0.00s  -bash
+usr0809  pts/2    172.26.4.49      12:53pm  0.00s 10.68s  0.03s  -bash
+u0809    pts/3    172.26.4.56       7:39am 28:29   7.59s  0.01s  -bash
+u0809    pts/4    172.26.4.51       2:20pm 55:45   0.12s  0.02s  -bash
+过滤包含pts的行，并显示它的第三和第一列
+$w |awk ' = /pts/ {printf "%s\t%s\n",,;}'
+172.26.4.52     user1
+172.26.4.49     user2
+172.26.4.56     user3
+172.26.4.51     user4
+
+
+$ sed -e "s:[^/]*\(/[^/]\{1,\}\)*//::" testfile
+
+
+首先用":"替换了sed命令行中“s”命令的分隔符"/"，这样作为普通字符的"/"就不需要转义了，可读性好些。小括号用来对表达式进行分组，并且后面还可以对它括起的子表达式进行向前引用。"{1,}"等价于"+"表示前面的子式一次以上的出现。而且因为用在shell命令行中，所以小括号和花括号都必须转义。 
+
+如何构造这个这表达式呢？ 
+第一步，比较简单的想法就是匹配".*//"，然后删除它，但是会把第二个、第三个"//"也删除，不合楼主原意。 
+
+第二步，如果用"[\/]*//"的话虽然不会匹配第二、第三个“//”，但是也不行，象"/http:/www.163.com//"也不能被匹配。 
+
+第三步，在我们的正则表达式中加入单个“/”的匹配，我们来看括号中的片段，实际上是： 
+“/[^/]{1,}” 
+"[^/]{1,}"匹配非"/"的字符至少出现一次，那么“/[^/]{1,}”就匹配"/a", "/1234", 但关键是不能匹配单个或连续的“/”如"/", "//", "////"等等， 以免把第一个“//”也匹配在其中。 
+那么"(/[^/]{1,})*"就是匹配单个"/"加至少一个非"/"字符的子表达式0次或多次的出现。然后再加上"/"字符可能不出现的情况，最后的表达式就写成这样： 
+
+[^/]*(/[^/]{1,})*//
+
+对小括号和花括号转义后就是： 
+
+[^/]*\(/[^/]\{1,\}\)*//
+
+
+
+说明：这篇文原理本不是“长”这个样子。可惜由于断电缘故 :cry: ，只好根据记忆克隆了，同时也简单很多。希望起到抛砖引玉的作用！ 
+
+初看第八问，不解。想：其它初学shell者亦同。故解之！ 
+
+变量替换： 
+一：简单赋值和替换 
+a=bcd 
+$ echo $a   
+bcd 
+$ echo ${a} 
+bcd 
+
+二：变量扩充 
+除了shell中的meta，其它的[^a-zA-Z0-9_]几乎都可以作单词边界。 
+同sed中关于单词边界[^a-zA-Z0-9_]的描述。 
+http://bbs.chinaunix.net/forum/24/20040825/393964.html 
+这些功能有时候会在程序中有意想不到的作用！ 
+例如： 
+$ a=bcd 
+$ echo ${a}.b 
+bcd.b 
+$ echo $a.php 
+bcd.php 
+$ echo $a%b 
+bcd%b 
+$ echo /$a/bc 
+/bcd/bc 
+对于shell中的meta字符，则backslash。 
+$ echo $a\*b 
+bcd*b 
+
+三：变量中的变量 
+$ a=bcd 
+$ b=efg 
+$ c=$a$b 
+$ echo $c 
+bcdefg 
+$ d=$c.ghi 
+$ echo $d 
+bcdefg.ghi 
+
+思考：若变量互相嵌套，会怎样呢? 
+
+四：变量的特异功能 
+到网中人的啦！（ps：重写真是没激情啊） 
+file=/dir1/dir2/dir3/my.file.txt 
+我们可以用 ${ } 分别替换获得不同的值： 
+${file#*/}：从变量file的字符串左边开始，删除字符直到第一个“/”：dir1/dir2/dir3/my.file.txt 
+${file##*/}：从变量file的字符串左边开始，删除字符直到最后一个“/”：my.file.txt 
+${file#*.}：从变量file的字符串左边开始，删除字符直到第一个“.”：file.txt 
+${file##*.}：从变量file的字符串左边开始，删除字符直到最后一个“.”：txt 
+
+其实，在“#”后面，无非就是一个匹配问题，不限于两个，你可以放任意个字符，还可以用shell中另外的通配符“?”“[…]”“[!…]”，例如： 
+$ echo ${file#????} 
+1/dir2/dir3/my.file.txt 
+$ echo ${file#*[0-9]} 
+/dir2/dir3/my.file.txt 
+$ echo ${file#/dir1/dir[0-9]} 
+/dir3/my.file.txt 
+
+[color=green]“#”：相当于最小匹配，遇到一个最小的符合其后表达式的字符串（单个或多个）即中止匹配动作； 
+“##”：相当于最大匹配，它尽可能的匹配更多的字符。 
+我们可以拿“*”来说明：   
+*  在shell中表示匹配任何符号包括空。当它在只有一个 # 的变量替换中，受最小匹配的影响，它不会匹配任何可打印字符，只匹配一个空，也就是什么也不匹配，你完全可以忽略它的存在； 
+当在有两个 ## 的变量替换中，受最大匹配的影响，一个 * 表示匹配整个字符串。 
+如果想匹配字符“*”时，要在“*”前加一个“\”，其后的“*”失去通配符的功能。 
+但是还有一种例外情况（请接着看）[/color] 
+
+例： 
+$ file2=abcd.efgh.ijkl.oopp 
+$ echo ${file2#*.*.*.*} 
+$ echo ${file2##*.*.*.*} 
+
+想想上面两个的输出是什么？ 
+$ echo ${file2#*.*.*.*} 
+oopp 
+$ echo ${file2##*.*.*.*} 
+空 
+？？知道为什么吗？因为：“*”匹配任何符号包括空。遇到一个“#”时，最后一个“*”就匹配“空”去了。看下面的： 
+$ echo ${file2#*.*.*.?} 
+opp 
+$ echo ${file2#*.*.*.?*} 
+opp 
+$ echo ${file2##*.*.*.?} 
+opp 
+$ echo ${file2##*.*.*.?*} 
+空 
+do you know？ 
+
+$ echo $file3 
+*ab*de*cd 
+看看下面将输出什么？ 
+$ echo ${file3#*ab}        
+*de*cd 
+$ echo ${file3#**} 
+*ab*de*cd 
+$ echo ${file3##**} 
+空 
+$ echo ${file3#\*ab} 
+*de*cd 
+$ echo ${file3#\**} 
+ab*de*cd 
+$ echo ${file3##\**} 
+空 
+$ echo ${file3#*a} 
+b*de*cd 
+$ echo ${file3#\*a} 
+b*de*cd 
+
+[color=brown]不知各位有没有发现，“*”在一个“#”中时，并不一定代表“空”，它可能代表一个字符“*”也可能代表其他的什么字符，如上例的： 
+“$ echo ${file3#*a}”输出为“b*de*cd”，其实这还是符合最小匹配理论的。这个表达式的意思是：从变量file3的字符串左边开始删除字符，直到遇到第一个字符“a”。所以不要和“$ echo ${file3#\*a}”混淆，虽然两个结果是一样，但意思是不一样的。[/color] 
+再举几个例子，相信大家更容易理解这段话： 
+$ echo $file3 
+*ab*de*cd*ab*de                     //注意：出现两个“*ab” 
+$ echo ${file3#*a} 
+b*de*cd*ab*de                         //删除字符，直到出现第一个“a”，“*”为通配符 
+$ echo ${file3##*a} 
+b*de                                           //删除字符，直到出现第二个“a”，“*”为通配符 
+$ echo ${file3##\*a} 
+b*de*cd*ab*de                         //删除字符串“*a”，“*”在“\”表示字符“*” 
+
+除了通配符“*”比较难理解一点，其他的shell通配符就都很容易了。 
+
+至于“%”，和“#”不同的地方，就是从变量字串右部开始。 
+${file%/*}：从右部开始拿掉字符，直到遇到（从右部数起的）第一个“/” ：/dir1/dir2/dir3 
+${file%%/*}：从右部开始拿掉字符，直到遇到（从右部数起的）最后一个“/”：(空值) 
+${file%.*}：从右部开始拿掉字符，直到遇到（从右部数起的）第一个“.”：/dir1/dir2/dir3/my.file 
+${file%%.*}：从右部开始拿掉字符，直到遇到（从右部数起的）最后一个“.”：/dir1/dir2/dir3/my 
+
+ :D
+
+
+egrep command   Description 
+
+--------------------------------------------------------------------------------
+  awk 'BEGIN {a=0} {a=$1+a}END {print a}' 1
+--------------------------------------------------------------------------------
+ 
+egrep ''''(John|Fred)'''' phone.txt  打印所有包含名字John或者Fred的行 
+egrep ''''John|22$|^W'''' phone.txt  打印所有包含John 或者以22结束或者以W的行 
+egrep ''''net(work)?s'''' report.txt  从report.txt中找到所有包含networks或者nets的行 
+
+awk 'BEGIN{a=0;b=0} {a=a+$5;b=b+$6;} END{print a,b}'
+
+awk '(num1+=$1;num2+=$2); END{print num1,num2}'
+awk '{(num1+=$1)}; END{print num1}'
+
+
+awk '{(num1+=$1)}; END{print num1}'
+
+awk 'BEGIN{a=0} {a=a+$2} END{print a/1024/1024}'
+
+
+测试：
+
+以 Redhat6.0 为测试环境
+事实上在solaris下的sed命令要比linux强，但因为没有测试
+环境，我这里只给在linux下经过测试的用法。
+
+目录：
+
+★ 命令行参数简介
+★ 首先假设我们有这样一个文本文件 sedtest.txt
+★ 输出指定范围的行 p
+★ 在每一行前面增加一个制表符(^I)
+★ 在每一行后面增加--end
+★ 显示指定模式匹配行的行号 [/pattern/]=
+★ 在匹配行后面增加文本 [/pattern/]a\ 或者 [address]a\
+★ 删除匹配行 [/pattern/]d 或者 [address1][,address2]d
+★ 替换匹配行 [/pattern/]c\ 或者 [address1][,address2]c\
+★ 在匹配行前面插入文本 [/pattern/]i\ 或者 [address]i\
+★ 替换匹配串(注意不再是匹配行) [addr1][,addr2]s/old/new/g
+★ 限定范围后的模式匹配
+★ 指定替换每一行中匹配的第几次出现
+★ &代表最后匹配
+★ 利用sed修改PATH环境变量
+★ 测试并提高sed命令运行效率
+★ 指定输出文件 [address1][,address2]w outputfile
+★ 指定输入文件 [address]r inputfile
+★ 替换相应字符 [address1][,address2]y/old/new/
+★ !号的使用
+★ \c正则表达式c 的使用
+★ sed命令中正则表达式的复杂性
+★ 转换man手册成普通文本格式(新)
+★ sed的man手册(用的就是上面的方法)
+
+★ 命令行参数简介
+
+sed
+-e script 指定sed编辑命令
+-f scriptfile 指定的文件中是sed编辑命令
+-n 寂静模式，抑制来自sed命令执行过程中的冗余输出信息，比如只
+显示那些被改变的行。
+
+不明白？不要紧，把这些肮脏丢到一边，跟我往下走，不过下面的介绍里
+不包括正则表达式的解释，如果你不明白，可能有点麻烦。
+
+★ 首先假设我们有这样一个文本文件 sedtest.txt
+
+cat > sedtest.txt
+Sed is a stream editor
+----------------------
+A stream editor is used to perform basic text transformations on an input stream
+--------------------------------------------------------------------------------
+While in some ways similar to an editor which permits scripted edits (such as ed
+)
+,
+--------------------------------------------------------------------------------
+-
+-
+sed works by making only one pass over the input(s), and is consequently more
+-----------------------------------------------------------------------------
+efficient. But it is sed's ability to filter text in a pipeline which particular
+l
+y
+--------------------------------------------------------------------------------
+-
+
+★ 输出指定范围的行 p other types of editors.
+
+sed -e "1,4p" -n sedtest.txt
+sed -e "/from/p" -n sedtest.txt
+sed -e "1,/from/p" -n sedtest.txt
+
+★ 在每一行前面增加一个制表符(^I)
+
+sed "s/^/^I/g" sedtest.txt
+
+注意^I的输入方法是ctrl-v ctrl-i
+
+单个^表示行首
+
+★ 在每一行后面增加--end
+
+sed "s/$/--end/g" sedtest.txt
+
+单个$表示行尾
+
+★ 显示指定模式匹配行的行号 [/pattern/]=
+
+sed -e '/is/=' sedtest.txt
+
+1
+Sed is a stream editor
+----------------------
+3
+A stream editor is used to perform basic text transformations on an input stream
+--------------------------------------------------------------------------------
+While in some ways similar to an editor which permits scripted edits (such as ed
+)
+,
+--------------------------------------------------------------------------------
+-
+-
+7
+sed works by making only one pass over the input(s), and is consequently more
+-----------------------------------------------------------------------------
+9
+efficient. But it is sed's ability to filter text in a pipeline which particular
+l
+y
+--------------------------------------------------------------------------------
+-
+-
+意思是分析sedtest.txt，显示那些包含is串的匹配行的行号，注意11行中出现了is字符串
+这个输出是面向stdout的，如果不做重定向处理，则不影响原来的sedtest.txt
+
+★ 在匹配行后面增加文本 [/pattern/]a\ 或者 [address]a\
+^D
+
+sed -f sedadd.script sedtest.txt
+
+Sed is a stream editor
+
+A stream editor is used to perform basic text transformations on an input stream
+
+While in some ways similar to an editor which permits scripted edits (such as ed
+)
+,
+--------------------------------------------------------------------------------
+-
+-
+sed works by making only one pass over the input(s), and is consequently more
+-----------------------------------------------------------------------------
+efficient. But it is sed's ability to filter text in a pipeline which particular
+l
+y
+--------------------------------------------------------------------------------
+-
+-
+[scz@ /home/scz/src]> sed -e "a\\
++++++++++
+---------------------------------------------
+
+找到包含from字符串的行，在该行的下一行增加+++++++++。
+这个输出是面向stdout的，如果不做重定向处理，则不影响原来的sedtest.txt
+
+很多人想在命令行上直接完成这个操作而不是多一个sedadd.script，不幸的是，这需要用?nbsp;
+?nbsp;
+续行符\，
+
+[scz@ /home/scz/src]> sed -e "/from/a\\
+＞ +++++++++" sedtest.txt
+
+[scz@ /home/scz/src]> sed -e "a\\
+＞ +++++++++" sedtest.txt
+
+上面这条命令将在所有行后增加一个新行+++++++++
+
+[scz@ /home/scz/src]> sed -e "1 a\\
+＞ +++++++++" sedtest.txt
+
+把下面这两行copy/paste到一个shell命令行上，效果一样
+
++++++++++" sedtest.txt
+
+[address]a\ 只接受一个地址指定
+
+对于a命令，不支持单引号，只能用双引号，而对于d命令等其他命令，同时
+
+
+★ 删除匹配行 [/pattern/]d 或者 [address1][,address2]d
+
+sed -e '/---------------------------------------------/d' sedtest.txt
+
+Sed is a stream editor
+
+A stream editor is used to perform basic text transformations on an input stream
+While in some ways similar to an editor which permits scripted edits (such as ed
+)
+,
+sed works by making only one pass over the input(s), and is consequently more
+efficient. But it is sed's ability to filter text in a pipeline which particular
+l
+
+y
+
+sed -e '6,10d' sedtest.txt
+删除6-10行的内容，包括6和10
+
+sed -e "2d" sedtest.txt
+删除第2行的内容
+
+sed "1,/^$/d" sedtest.txt
+删除从第一行到第一个空行之间的所有内容
+注意这个命令很容易带来意外的结果，当sedtest.txt中从第一行开始并没有空行，则sed删
+?nbsp;
+?nbsp;
+
+sed "1,/from/d" sedtest.txt
+删除从第一行到第一个包含from字符串的行之间的所有内容，包括第一个包含
+from字符串的行。
+
+★ 替换匹配行 [/pattern/]c\ 或者 [address1][,address2]c\
+
+sed -e "/is/c\\
+**********" sedtest.txt
+
+寻找所有包含is字符串的匹配行，替换成**********
+
+**********
+----------------------
+**********
+--------------------------------------------------------------------------------
+While in some ways similar to an editor which permits scripted edits (such as ed
+)
+,
+--------------------------------------------------------------------------------
+-
+-
+**********
+-----------------------------------------------------------------------------
+**********
+--------------------------------------------------------------------------------
+-
+
+sed -e "1,11c\\
+**********" sedtest.txt----------------------
+在1-12行内搜索所有from字符串，分别替换成****字符串
+
+★ 限定范围后的模式匹配
+
+sed "/But/s/is/are/g" sedtest.txt
+对那些包含But字符串的行，把is替换成are
+
+sed "/is/s/t/T/" sedtest.txt
+对那些包含is字符串的行，把每行第一个出现的t替换成T
+
+sed "/While/,/from/p" sedtest.txt -n
+输出在这两个模式匹配行之间的所有内容
+
+★ 指定替换每一行中匹配的第几次出现
+
+sed "s/is/are/5" sedtest.txt
+把每行的is字符串的第5次出现替换成are
+
+★ &代表最后匹配
+
+sed "s/^$/(&)/" sedtest.txt
+给所有空行增加一对()
+
+sed "s/is/(&)/g" sedtest.txt
+给所有is字符串外增加()
+
+sed "s/.*/(&)/" sedtest.txt
+给所有行增加一对()
+
+sed "/is/s/.*/(&)/" sedtest.txt
+给所有包含is字符串的行增加一对()
+
+★ 利用sed修改PATH环境变量
+
+先查看PATH环境变量
+[scz@ /home/scz/src]> echo $PATH
+/usr/bin:/usr/bin:/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/X11R6/bin:.
+
+去掉尾部的{ :/usr/X11R6/bin:. }
+[scz@ /home/scz/src]> echo $PATH | sed "s/^\(.*\):\/usr[/]X11R6\/bin:[.]$/\1/"
+/usr/bin:/usr/bin:/bin:/usr/local/bin:/sbin:/usr/sbin
+
+去掉中间的{ :/bin: }
+[scz@ /home/scz/src]> echo $PATH | sed "s/^\(.*\):\/bin:\(.*\)$/\1\2/"
+/usr/bin:/usr/bin/usr/local/bin:/sbin:/usr/sbin:/usr/X11R6/bin:.
+
+[/]表示/失去特殊意义
+\/同样表示/失去意义
+\1表示子匹配的第一次出现
+\2表示子匹配的第二次出现
+\(.*\)表示子匹配
+
+去掉尾部的:，然后增加新的路径
+PATH=`echo $PATH | sed 's/\(.*\):$/\1/'`:$HOME/src
+注意反引号`和单引号'的区别。
+
+★ 测试并提高sed命令运行效率
+
+time sed -n "1,12p" webkeeper.db > /dev/null
+time sed 12q webkeeper.db > /dev/null
+可以看出后者比前者效率高。
+
+[address]q 当碰上指定行时退出sed执行
+
+★ 指定输出文件 [address1][,address2]w outputfile
+
+sed "1,10w sed.out" sedtest.txt -n
+将sedtest.txt中1-10行的内容写到sed.out文件中。
+
+★ 指定输入文件 [address]r inputfile
+
+sed "1r sedappend.txt" sedtest.txt
+将sedappend.txt中的内容附加到sedtest.txt文件的第一行之后
+
+★ 替换相应字符 [address1][,address2]y/old/new/
+
+sed "y/abcdef/ABCDEF/" sedtest.txt
+将sedtest.txt中所有的abcdef小写字母替换成ABCDEF大写字母。
+
+★ !号的使用
+
+sed -e '3,7!d' sedtest.txt
+删除3-7行之外的所有行
+
+sed -e '1,/from/!d' sedtest.txt
+找到包含from字符串的行，删除其后的所有行
+
+★ \c正则表达式c 的使用
+
+sed -e "\:from:d" sedtest.txt
+等价于 sed -e "/from/d" sedtest.txt
+
+★ sed命令中正则表达式的复杂性
+
+cat > sedtest.txt
+^\/[}]{.*}[\(]$\)
+^D
+
+如何才能把该行替换成
+\(]$\)\/[}]{.*}^[
+
+★ 转换man手册成普通文本格式(新)
+
+man sed | col -b > sed.txt
+sed -e "s/^H//g" -e "/^$/d" -e "s/^^I/ /g" -e "s/^I/ /g" sed.txt > sedman
+.
+txt
+删除所有退格键、空行，把行首的制表符替换成8个空格，其余制表符替换成一个空格。
+
+
+
+
+sed  's/^.*world.*$/boy/g' 替换带有world 的整行
+
+
+
+
+判断条件如下
+
+infile=${sourcedir2}/servprd_${intftg}.${period}.Z
+
+if [ -f ${infile} ]
+
+then
+
+    zcat ${infile} | awk -F"&" '
+
+    {
+
+        if ( substr($0,1,4) !="HDR2" && $17 != "0" && $17 != "VC0000" && \
+
+           ( substr($7,1,2) == "13" || substr($7,1,2) == "15" ) )
+
+            printf("%s vip1\n",$7);
+
+    }' >> ${outfile1}
+
+else
+
+    echo ${infile} not exitst
+
+fi
+
+ 
+
+
+
+awk 'BEGIN{a=0;b=0} {a=a+$5;b=b+$6;} END{print a,b}'
+
+awk '(num1+=$1;num2+=$2); end{print num1,num2}'
+awk '{(num1+=$1)}; END{print num1}'
+
+
+awk '{(num1+=$1)}; END{print num1}'
+
+
+
+
+
+
+: 这是Vi的命令执行界面。 
+range 是命令执行范围的指定，可以使用百分号（%）表示所有行，使用点（.）表示当前行，使用美元符号（$）表示最后一行。你还可以使用行号，例如10,20表示第10到20行，.,$表示当前行到最后一行，.+2,$-5表示当前行后两行直到全文的倒数第五行，等等。 
+s 表示其后是一个替换命令。
+pat1 这是要查找的一个正则表达式，这篇文章中有一大堆例子。
+pat2 这是希望把匹配串变成的模式的正则表达式，这篇文章中有一大堆例子。 
+g 可选标志，带这个标志表示替换将针对行中每个匹配的串进行，否则则只替换行中第一个匹配串。
+
+
+S1SZXNJK:<devis>:echo `cal`
+六月 2007 日 一 二 三 四 五 六 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+S1SZXNJK:<devis>:1kl
+NF＆$NF的区别
+S1SZXNJK:<devis>:echo `cal` |awk '{print $NR}'
+六月
+S1SZXNJK:<devis>:echo `cal` |awk '{print $NF}'
+30
+S1SZXNJK:<devis>:echo `cal` |awk '{print NF}' 

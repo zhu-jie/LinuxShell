@@ -1,0 +1,435 @@
+/*
+ * vim 基本使用 
+ *
+ * 作者: 钱善海 <qianshanhai At hotmail Dot com>
+ * 创建时间: 2006.03.21
+ * 最后修改时间: 2007.08.30
+ */
+
+1.  什么是 vim
+
+2.  vim 的基本操作
+2.1 基本指令
+2.2 多文件编辑
+2.3 十六进制编辑
+2.4 查找
+2.5 替换
+
+3.  编辑代码的设置和操作
+3.1 ~/.vimrc 配置 
+3.2 使用 tag
+
+4.  语法高亮
+5.  文档
+6.  参考文档
+
+
+
+                                 VIM 基本使用
+
+
+
+1. 什么是 vim
+
+  vim 是一款编辑器, 是 Vi IMproved 的缩写. 也即 vi 的扩展版本.
+  (vi 的扩展版有很多, vim 是其中一种, 应该是最接近 vi 的一个扩展版)
+  主要作者是 Bram Moolenaar, 他编写了 Vim 的核心功能.
+  官方主页: www.vim.org , 使用与 GPL 兼容的协议发布, 可以获得(如下载)源代码.
+  (什么是 GPL ?  请看 http://www.gnu.org/copyleft/gpl.html )
+  
+  那 vi 又是什么呢?  vi 也是一款编辑器, 起源于 1977 年, 作者是 Bill Joy.
+  vi 即 visual 的意思, 意指可视化编辑器, 非可视化编辑器有如 ed sed 等.
+
+  vim 是编辑器, 但更像是一个工具, 使用它可以高效的完成很多事情,
+  既然是一个工具, 我们就应该先学习再使用, 高效是在有一定的基础之上的.
+  
+  vim 继承了 Unix 和 vi 的哲学: 简单, 高效.
+
+1.1 使用 vim 的三大理由
+
+  a) vim 是用 c 语言写的, 可以移植到几乎任何操作系统
+  b) vim 是最接近于 vi 的一个扩展版本
+  c) 语法高亮, 很适合于编写各种代码
+
+2. vim 的基本操作
+
+2.1 基本指令
+
+  在 vim 中, 光标的移动是基础, 只有熟练光标的移动才能体会 vim 的高效,
+  并且, 很多操作都是和光标移动有关的. 另外, 使用 vim 时, 应该只使用
+  下面这个区域中的按键:
+
+      ~         ...         <- (即 BackSpace 键)
+      ...       ...         ...
+      Ctrl      ...         Ctrl
+
+  建议: 每天使用 vim 一个小时熟悉指令, 连续七天即可.
+
+  ** 下面除了特别说明外, 使用 ^X 表示 Ctrl-X , X 为任意字符.
+  
+  vim  有六种模式, 为了弄混, 先假定有三种:
+  
+  a. Normal mode(common mode, c-mode)  称为普通模式
+    进入 vim 后的就是处于 c-mode , 只能下下按键指令, 不能输入文字.
+
+  b. Insert mode(i-mode)  称为编辑模式
+    按 i 就会进入 i-mode, 此时才可以输入, 按 ^[ 又会回到 c-mode
+
+  c. Ed mode(common-line mode, e-mode)   命令行模式
+    按冒号 :  就会进入 e-mode
+  
+  e-mode (命令行模式): (简单命令, 复杂的在后面)
+    :q  退出文件  :q!  强制退出  :w  写入文件  :w!  强制写入   :wq  写入并退出
+    :w foo  写入文件 foo         :r foo  读入文件 foo
+  
+  c-mode (普通模式):
+  
+    进入 i-mode:
+      i  在光标前编辑    I  在行首编辑    o  在光标所在行下开启新行  
+      a  在光标后编辑    A  在行尾编辑    O  在光标所在行上开启新行
+      s  删除当前光标所在字符后编辑       S  删除当前行(不包括行前空白)后编辑
+      s 和 S 并不常用.
+                                        
+    光标移动和删除:                       k            H  屏幕左上角非空白处
+      h  左  j  下  k  上  l  右       h     l         M  屏幕中间非空白处
+                                          j            L  屏幕左下角非空白处
+      w  右移下一个字的开始处,  e  移到所在字的末端  b  移到上一个字开始处
+      W E B 与上面一样, 不同的是以空白区分字(word)
+      gg 文件首   G  文件尾  x  删除光标所在字符  X 删除光标前的字符
+      0  行前        ^  行前非空白处   $  行尾
+      d  删除指令,与其它指令组合, 如 dw  删除一个字  d0  删至行首
+      dd 删除当前行     D  删至行尾
+      ** 删除的内容会放到缓冲区, 使用后面的 p 可以粘贴
+  
+      以上指令可以和数字组合, 如:
+      50l 表示向后移 50 个单元,   d5w  删除后面 5 个字
+      dL  删除到屏幕底端          100gg  跳至文件的第 100 行, 或者 100G
+  
+    另外一些基本操作:
+      K  查找当前的字的 man 页, 相当于执行 :! man <cword>, 写 C 代码非常有用.
+      .  重复上一个改变, 这里的改变是插入, 删除或替换操.作
+      u  撤销
+      ^R 反撤销
+      %  当光标位于小中大括号时, 移动到小中大括号相对应的左右括号,
+      J  把一行连接到当前行
+      =  重新排版指令, 如   =% , =L 等等
+      >> 向右缩进,   3>>                     ^F  向后翻页
+      << 向左缩进                            ^B  向前翻页
+      zz 使当前位置成为屏幕的中间      [I  显示包含当前字的所有行
+  
+    标签 mark  --  方便跳来跳去
+  
+      m   标签指令,  mx  把当前位置标为 x , x 可为 a-zA-Z
+      'x  跳至标签为 x 所在行的行首非空白处
+      `x  跳至标签为 x 所在行标签时的位置
+  
+    选中:
+  
+      v   按行选中, 以单元为单位
+      V   按行选中, 以行为单位
+      ctrl-v  按列选中
+      v%   vL  v$
+      选中后可以进行一些操作:
+      u   转成小写   U  转成大写   y  拷贝  >  向右缩进    <   向左缩进
+  
+    yank & paste:
+      y  拷贝指令    p   粘贴指令, 粘贴由 x, X, d, D, y 引起的缓冲区
+      yy 拷贝当前行  y4j 拷贝当前行和后 4 行
+      y`a  拷贝至标签 a , 以行为单位
+      y'a  拷贝至标签 a , 以字符为单位
+      2p   粘贴 2 次,  xp  对换当前字符和下一字符, ddp 对换当前行和下一行
+     
+    替换(r):
+  
+      rx  把当前字符替换为 x, x 为任意字符
+      R   替换 n 个字符, 直到按 Esc 或 ^[ 为止
+      例子:  05l^V3jra  把当前行向后开始的 4 行的第 6 列换成 a
+  
+    查找:
+  
+      /   向后查找               ?   向前查找
+      *   向后查找光标所在字     #   向前查找光标所在字
+      n   下一个                 N   上一个
+  
+     查找时在 e-mode 下的相关设置:
+     :set hls   显示查找高亮        :set nohls  取消查找高亮
+  
+    文件和当前信息:
+      ^G         g^G
+  
+  
+    记录和重复操作: (这类功能极少用到, 用到时再来查找)
+      q  记录指令         @   重复操作指令
+      qx...q   x 为 a-zA-Z , ... 表示一系列的操作, 最后的 q 表示结束这个记录.
+      @x  重复标签为 x 的记录,  n@x  表示重复 n 次.
+  
+    两类指令:
+      1.  与区域无关, 像 h, j, k, l ^F ^B 这些基本的光标移动指令和 m 等等
+      2.  与区域有关:
+      a)  d  y  = 
+         这一类的操作与当前光标和最后的光标有关, 所以称做与区域有关,
+         如 dG 将删到文件尾, 当然是从当前位置开始的了,
+         又如  d%  =100j yL , 并且这几个指令在选中块之后也能使用
+      b)  > < u U  指令在选中块之后使用
+  
+    折叠:
+      zf  后加上移动指令, 就能折叠这个区域, 如 zf%  zfG  等等,
+      通常在看代码时使用. 对着折叠的行按 0 展开.
+  
+    快速移动:
+      a.  ^F ^B w W  %  30j 等
+      b.  /  ?
+      c.  fo  移到行中第一个字符 o 的位置
+    
+    列编辑:
+      a. ^V3jISTRING^[    在选中的三列插入 STRING
+      b. ^V3j$ASTRING^[   在选中的三列的行尾添加 STRING
+      c.  请看 :h  中的 visual.txt
+
+    大小写:
+      ~  大小写互换  g~~  把该行的大小写互换
+      guu  把当前行换成小写     gUU  把当前行换成大写   gUw  ??
+
+    更多的删除和变换见 :h 中的 change.txt
+  
+  i-mode (编辑模式):
+
+    ^P  自动补全,或 ^N        ^[   进入 c-mode 模式
+
+  
+
+2.2 多文件编辑
+
+  a. 命令行
+  $ vim file1 file2
+  
+  :n 下一个文件,  :N 上一个文件
+  :first  第一个文件    :last 最后一个文件
+  
+  b. e-mode 
+  :sp foo  打开文件 foo      :vsp foo     :res +10  增加窗口高度
+  
+  ^WW  切换文件   ^Wj   ^Wk
+
+  编辑包括所有 word 的文件:
+  $ vim `grep -l word */*.c`
+
+  在 vim 7.0 后的版本, 还可以使用多 Tab 的模式编辑, 例如:
+
+  :tabedit file2.cpp
+
+  或者在命令行加上 -p 使用:
+
+  $ vim -p  *.cpp
+
+  全部退出:
+
+  :qa
+
+2.3  16 进制编辑
+
+  vim 本身不支持 16 进制编辑, 也建议不要使用 vim 进行十六进制编辑,
+  但偶尔想简单编辑时, 可以通过外部命令 xxd 来编辑:
+
+  :% !xxd   编辑     :% !xxd -r   恢复
+
+2.4  查找
+
+  默认情况下查找是大小写敏感的, 可以  :set ignorecase 使之忽略大小写,
+  执行  :set noignorecase  又变成大小写敏感了.
+
+
+2.5  替换
+
+  :%s/a/b/g   把文件当中的所有的 a 换成 b , % 表示整个文件内容, g 表示全部替换
+              s/a/b/g 可以写成 s|a|b|g  等等
+  :%s/^/  /g  每一行前面加上两个空格, 还记得 ^ 嘛?
+  :n,m s/$/ ,/g   在第 n 行和第 m 行的每一行的行尾加上" ," 
+  :% s/^M//g  当中的 ^M 为 ^VM , 即回车符, 意即把回车符替换为空
+
+  :g /^$/d    删除掉所有空行:
+
+2.6  调用外部命令
+
+  :! cmd   执行命令 cmd                 :sh  暂时退出 vim, 执行 $SHELL
+
+  例如, 调用 sort 排序:
+
+  :%!sort 
+
+3.  编辑代码的设置和操作
+3.1 ~/.vimrc 配置
+  vim 在启动时会先读取文件 ~/.vimrc , 因为可以把一些设置写到该文件中:
+  如我的 ~/.vimrc 文件内容为:
+
+"set term=vt100
+set ts=4
+set sw=4
+set fileencoding=cp936
+set fileencodings=cp936
+set encoding=cp936
+set autoindent
+set showcmd
+set nocompatible
+set smartindent
+set showmatch
+set t_Co=8
+set t_Sf=^[[1;3%p1%dm
+set t_Sb=^[[1;4%p1%dm
+map <C-J> :set filetype=cpp<CR>
+set hls
+set incsearch
+
+set path=.,/usr/include,include,inc,../include,../inc
+set path+=/usr/local/SRBC2.0/include
+
+set tags+=tags;
+
+"set wrap
+syntax on
+highlight Comment ctermfg=cyan
+highlight Macro   ctermfg=gray
+highlight Include ctermfg=magenta
+  
+if has("autocmd")
+    filetype plugin indent on
+    augroup vimrcEx
+    au!
+    autocmd FileType text setlocal textwidth=78
+    autocmd BufReadPost *
+        \ if line("'\"") > 0 && line("'\"") <= line("$") |
+        \   exe "normal g`\"" |
+        \ endif
+    augroup END
+endif
+
+map <C-K> gt  "在多 TAb 编辑时方便跳转
+map <C-H> gT
+map <Tab> gt
+
+  ** 注意上面的 ^[ 是这样输入的: ^V[
+  注释使用双引号.
+  
+3.2 使用 tag
+
+  tag 是什么? 那是一个索引文件, 能够在 vim 或多种编辑器中使用.
+  使用 tag 分两步, 一是制作 tag 文件, 二是在编辑器中使用.
+
+  3.2.1 制作 tag
+
+    3.2.1.1 生成 tags 文件
+
+    制作 tag 是个简单的过程, 需要使用外部命令 ctags 完成, 需要注意的是,
+    这里的 ctags 是 GNU ctags, 如果发现当前系统的 ctags 使用不了, 请找
+    系统管理员或者本文作者帮忙解决.
+    
+    在 vim 中, 只需要在最上层的目录生成 tags 文件即可,
+    这时在 .vimrc 中加入:  set tags+=tags;  表示如果当前目录找不到文件 tags,
+    那么往上一层目录查找, 直到找到为此.
+  
+    当然了, 可以在任意一个目录下生成 tags 文件.
+  
+    生成 tags 文件最简单的方法是在 ctags 中使用 -R 参数, 表示包括所有子目录
+    中的文件, 如:
+  
+    ctags -R .
+  
+    或者指定文件: ctags *.cpp *.h
+  
+    有时候源代码中包括了如 esqlc 或 proc 的代码, 这时可加上 --language-force
+    参数, 让 ctags 强制认成某种语言, 如认成 c++ 语言:
+  
+    ctags -R --language-force=C++ .
+
+    3.2.1.2 svn 问题
+
+    使用 svn checkout 出来的代码, 会有一份相同的在目录 .svn 下, 这时如果用 -R
+    参数制作 tags 文件, 会包含多份一样的标记, 可用 --exclude 把它排除掉:
+
+    ctags -R --language-force=C++ --exclude=.svn .
+
+  3.2.2 使用 tag 
+
+    在 vim 中, 可按下面的命令使用 tag :
+  
+    ^]   跳至该 tag 处, 如果存在多个一样的 tag, 跳至第一个, 可用 g] 显示全部.
+    ^T  返回
+    g]   显示该 tag 的所有信息, 这时可按数字加回车选择.
+
+    如果找不到 tags 文件, 可以直接使用 set tag=/path/to/tags 指定.
+
+4.  语法高亮
+  
+  使用   :syntax on   就能够激活语法高亮显示了, 如果还没有显示颜色, 
+  可能需要  :set filetype=cpp  表示使用 cpp.vim 作为语法高亮显示.
+  使用不同颜色方案:  
+                :colorscheme default
+  如果没有设置环境变量 VIMRUNTIME 可能也会没有显示语法高亮
+  
+  [qsh@thai src]$ ls /usr/local/share/vim/vim64/colors/
+  README.txt     default.vim    elflord.vim    morning.vim    peachpuff.vim 
+  blue.vim       delek.vim      evening.vim    murphy.vim     ron.vim       
+  darkblue.vim   desert.vim     koehler.vim    pablo.vim      shine.vim
+  [qsh@thai src]$ echo $VIMRUNTIME 
+  /usr/local/share/vim/vim64
+
+  还可以使用自己的配色方案:
+
+  $ mkdir ~/.vim/colors
+  $ cp $VIMRUNTIME/colors/morning.vim ~/.vim/colors/mine.vim
+  
+  然后这样使用:       :colo  mine
+
+  一般来说, 默认的配色方案就已经很好看了.
+
+  有时想自己定义关键字颜色:
+
+  :highlight Comment ctermfg=cyan guifg=cyan
+
+  这句在写代码时很管用的, 表示注释用蓝色显示.
+  其它具体使用可参考 vim 自带的文档(见后面)
+
+5.  文档
+
+  5.1 查看帮助
+
+    -----------------------------------------------------------------------
+    条目                          前缀                      例子
+    -----------------------------------------------------------------------
+    Normal模式命令                  无                     :h k
+    CRTL控制字符                    CRTL_                  :h CRTL_r
+    Visual视图模式                  v                      :h v_u
+    Insert插入模式命令              i                      :h i_CRTL-o
+    ex-模式命令                     :                      :h :set
+    Command-line命令行编辑          c                      :h c_<BS>
+    命令参数                        -                      :h -m
+    选项                            '                      :h 'winminwidth'
+    -----------------------------------------------------------------------
+
+    :h <Left>
+    :h <CR>
+    :h <Up>
+    :helpg[rep] {pattern}  搜索所有的帮助文本并给出一个匹配 {pattern} 行的列表.
+
+  5.2  入门文档
+
+    a. $ vimtutor
+       在 shell 下执行 vimtutor 就会进会 vim 的入门教程.
+
+    b.  进入 vim 后输入 :h 就进入 vim 的帮助, 蓝色如下面的这些
+
+        |usr_22.txt|  Finding the file to edit
+        |usr_23.txt|  Editing other files
+        |usr_24.txt|  Inserting quickly
+
+       的两竖线之间的文档都已经作了 tag , 把光标移到相应位置就可以用 ^] 跳转了. 
+
+    c.  若想看指令 f 的帮助, 输入 :h f 即可.
+
+    d.  可以到 www.vim.org 查看
+
+6.  参考文档
+
+  参考了 vim 自带的文档: 即进入 vim 后, 按 :h
+
+

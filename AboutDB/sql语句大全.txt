@@ -1,0 +1,478 @@
+[1]新建相同结构的表：(但不会建索引)
+create table ezfp2dgs_dis_0509_tmp as select * from ezf.ezfp2dgs_dis_0509@tospeed02 where 1=2;
+[2]将数据倒入另一相同结构的表：
+insert into ezfp2dgs_dis_0509_tmp (select * from ezf.ezfp2dgs_dis_0509@tospeed02);
+[3]sqlplus中编辑sql：
+ed
+保存后敲“/”执行；
+[4]表中两个字段值对调：
+update ezfp2dgs_dis_0509 set int_call_type2=int_call_type,int_call_type=int_call_type2;
+commit;
+[5]业务成功率统计SQL语句：
+select srvtype,statdate,sum(a),sum(b),sum(b-a),sum(a)/sum(b)*100
+from
+(
+select decode(substr(stat_type,5,1),'1','PDA','j','KJAVA','t','WAP','u','GDWAP') srvtype ,statdate,
+sum(billamount) a, sum(0) b  
+from ezf.ezfp0dts_misc_0508@tospeed13 
+where profile ='HBB'
+and to_char(statdate,'yyyymmdd')>='20050801'
+and to_char(statdate,'yyyymmdd')<'20050830'
+and substr(stat_type,5,1) in ('u','t','j','1') 
+and exc='GZSS'
+and substr(stat_type,2,1)='h'
+group by decode(substr(stat_type,5,1),'1','PDA','j','KJAVA','t','WAP','u','GDWAP'),statdate
+union all
+select decode(substr(stat_type,5,1),'1','PDA','j','KJAVA','t','WAP','u','GDWAP') srvtype ,statdate,
+sum(0) a ,sum(billamount) b
+from ezf.ezfp0dts_misc_0508@tospeed13 
+where profile ='HBB'
+and to_char(statdate,'yyyymmdd')>='20050801'
+and to_char(statdate,'yyyymmdd')<'20050830'
+and substr(stat_type,5,1) in ('u','t','j','1') 
+and exc!='GZSS'
+and substr(stat_type,2,1)='h'
+group by decode(substr(stat_type,5,1),'1','PDA','j','KJAVA','t','WAP','u','GDWAP'),statdate
+)
+group by srvtype,statdate
+order by srvtype
+[6]union/intersect/minus
+select vc_name from test_lhgui union select te_name from test_lhgui@todev; //将vc_name和te_name合并，并去掉重复；
+select vc_name from test_lhgui union all select te_name from test_lhgui@todev;//将vc_name和te_name合并，显示重复的记录；
+select vc_name from test_lhgui intersect select te_name from test_lhgui@todev;//结果为vc_name和te_name中都有的；（相交）
+select vc_name from test_lhgui minus select te_name from test_lhgui@todev;//结果为从vc_name中去掉te_name中有的；（相减）
+[7]按照条件将两张表（结构相同）中数据整合（相加）：
+select vc_BILL_PERIOD, vc_SWITCH_FLAG,dt_STATDATE,vc_STAT_TYPE,vc_PROFILE,
+int_CALL_TYPE2,int_CALL_TYPE,vc_TERM_FLAG,int_BRAND,
+sum(int_no_of_calls),sum(dec_billamount),sum(dec_mobileamount),
+sum(int_call_duration),sum(int_tot_duration)
+from (
+select * from tab1
+union ALL
+select * from tab2
+)
+group by vc_BILL_PERIOD, vc_SWITCH_FLAG,dt_STATDATE,vc_STAT_TYPE,vc_PROFILE,
+          int_CALL_TYPE2,int_CALL_TYPE,vc_TERM_FLAG,int_BRAND
+[8]看表结构：
+SQL> desc test_lhgui;
+ Name                                      Null?    Type
+ ----------------------------------------- -------- ----------------------------
+ INT_ID                                    NOT NULL NUMBER(38)
+ VC_NAME                                   NOT NULL VARCHAR2(20)
+ VC_PHONE                                           VARCHAR2(20)
+[9]sqlplus中看set命令：
+SQL>show all；
+[10]检查表的索引：
+select * from user_ind_columns where table_name = ‘test_lhgui’;
+[11]建表（带索引）
+create table ezfp0_gprsshut
+(
+filename varchar(128) not null,
+transdate date null,
+bill_period varchar(7) null,
+constraint pk_ezfp0_gprsshut primary key(filename)
+);//唯一索引
+[12]建索引
+建立索引： CREATE [UNIQUE] INDEX indexname ON tablename(column ,。。。)；
+create index pk_ezfp0_gprsshut on ezfp0_gprsshut (filename);
+create unique index pk_ezfp0_gprsshut on ezfp0_gprsshut (filename);//唯一索引
+create index pk_ezfp0_gprsshut on ezfp0_gprsshut key(filename);
+create unique index pk_ezfp0_gprsshut on ezfp0_gprsshut key(filename);//唯一索引
+[13]删除索引
+drop index pk_ezfp0_gprsshut;
+[13]命令提示符下连接Oracle数据库
+C:\Documents and Settings\Administrator>sqlplus
+SQL*Plus: Release 8.1.7.0.0 - Production on 星期六 10月 8 14:28:41 2005
+(c) Copyright 2000 Oracle Corporation.  All rights reserved.
+请输入用户名:  ezf@dev
+请输入口令:  ***@dev
+
+连接到:
+Oracle8i Enterprise Edition Release 8.1.7.4.0 - 64bit Production
+With the Partitioning option
+JServer Release 8.1.7.4.0 - 64bit Production
+SQL> 
+------------------------------------------------
+已经连接到数据库dev；输入用户名及口令时，可以只其一加上“@dev”；
+[14]日期insert和update
+SQL> desc test_lhgui;
+ Name                                      Null?    Type
+ ----------------------------------------- -------- ----------------------------
+ TE_ID                                     NOT NULL NUMBER(38)
+ TE_NAME                                   NOT NULL VARCHAR2(20)
+ TE_PHONE_NUMBER                                    VARCHAR2(20)
+ SS_DATE                                            DATE
+ CHAR_ID                                            VARCHAR2(20)
+
+SQL>
+Insert into test_lhgui (TE_ID,TE_NAME,SS_DATE) 
+values(5,’黑人’,’10-OCT-05’);
+update test_lhgui set SS_DATE=’11-OCT-05’ where TE_ID=5;
+[15]用伪列来限制在查询中返回的记录数
+SQL>select * from ezf.datp0_chkdup_store_dfs@tospeed02 where rownum<20;
+注意：
+Rownum是要显示的记录数；
+该用法在PL/SQL和Pro*C中常常不能用；
+在条件中可以用<=，但不能用=或>号作判断；
+一般只是关心查询内容的存在性；
+[16]rowid的应用
+oracle为每个表的每一条记录赋予一个唯一的标识号rowid，它是一个伪列，虽然在定义表结构时并不声明它，但它自动地建立，用desc查看表结构时并不显示该字段，rowid在进行UPDATE或DELETE操作中速度最快。
+SQL> select te_id,te_name,ss_date,rowid from test_lhgui;
+
+     TE_ID TE_NAME              SS_DATE   ROWID
+---------- -------------------- --------- ------------------
+         1 李红桂               18-JUL-05 AAAONMAAFAABpSDAAA
+         2 罗  江               18-JUL-05 AAAONMAAFAABpSDAAB
+         3 庞耀华               18-JUL-05 AAAONMAAFAABpSDAAC
+         4 黑人                 10-OCT-05 AAAONMAAFAABpSDAAD
+         5 牛人                 15-JAN-05 AAAONMAAFAABpSDAAE
+         4 黑人                 10-OCT-05 AAAONMAAFAABpSDAAF
+
+6 rows selected.
+TE_ID为4的有2条完全一样的记录，现在要删除一条，便可通过ROWID来删除；
+SQL> delete from test_lhgui where rowid=chartorowid('AAAONMAAFAABpSDAAF');
+1 row deleted.
+SQL> select te_id,te_name,ss_date,rowid from test_lhgui;
+
+     TE_ID TE_NAME              SS_DATE   ROWID
+---------- -------------------- --------- ------------------
+         1 李红桂               18-JUL-05 AAAONMAAFAABpSDAAA
+         2 罗  江               18-JUL-05 AAAONMAAFAABpSDAAB
+         3 庞耀华               18-JUL-05 AAAONMAAFAABpSDAAC
+         4 黑人                 10-OCT-05 AAAONMAAFAABpSDAAD
+         5 牛人                 15-JAN-05 AAAONMAAFAABpSDAAE
+
+5 rows selected.
+[17]列值为NULL情形的处理
+主要是数学问题引起，如数学的数字运算是：NULL+数字=NULL。
+函数NVL可以解决，格式为NVL（value,substitute）
+SQL>select ename,sal,comm,nvl(sal,0)+nvl(comm,0) from emp;
+[18]如何确定执行时间
+SQL>set timing on
+SQL> select count(*) from ezf.ezfp0_gprs_rec@tospeed13;
+
+  COUNT(*)
+----------
+    796973
+
+Elapsed: 00:00:03.38
+SQL>set timing off
+
+另外还有一个办法：
+SQL>show time;
+Time off
+SQL>time on;
+[19]执行缓冲区命令
+SQL>list     //查看缓冲区内容
+SQL>run      //显示命令
+SQL>/        //不显示命令
+[20]执行文件中命令
+SQL>start file_name[.ext] [arg1 arg2…]
+参数f i l e _ n a m e [ . e x t ]代表你想运行的命令文件，如果省略扩展名， S Q L * P l u s使用缺省的命令文件扩展名（通常为. s q l）。
+S Q L * P l u s在当前目录下查找具有你在S TA RT命令中指定的文件名和扩展名的文件。如果没有找到符合条件的文件， S Q L * P l u s将在S Q L PAT H环境变量定义的目录中查找该文件。也可以包括文件的全路径名，例如： C : \ M Y D Y R \ M Y F I L E . S Q L。
+可以在一个命令文件中包括正常情况下交互地输入的任何S Q L命令、S Q L * P l u s命令或P L / S Q L块。命令文件中的E X I T或Q U I T命令用于退出S Q L * P l u s。
+参数部分（ [ a rg1 arg 2.]）代表你希望传递给命令文件中的参数的值，命令文件中的参数必须使用如下格式声明： & 1、& 2、.（或& & 1、& & 2、.）。如果你输入一个或多个参数，S Q L * P l u s使用这些值替换命令文件中的参数。第一个参数替代每个& 1，第二个参数替代每个& 2，以此类推。
+S TA RT命令使用参数的值定义参数。如果你在同一个S Q L * P l u s会话中再次运行这个命令文件，你可以输入新的参数或省略参数以使用参数的当前值。要运行名称为D E LT B L . S Q L的命令文件，输入以下代码：
+SQL>start DELTBL
+@（“ a t”）命令的功能与S TA RT命令非常类似，唯一的区别就是@命令既可以在S Q L * P l u s会话内部运行，又可以在启动S Q L * P l u s时的命令行级别运行，而S TA RT命令只能在S Q L * P l u s会话内部运行。要启动一个S Q L * P l u s会话并执行一个命令文件中的命令，输入下列代码：
+$sqlplus [user/passwd] @file_name[.ext] [argv1 argv2…]
+如果S TA RT命令被禁止，同样会禁止@命令。本章后面的2 6 . 4节含有关于禁止S Q L * P l u s命令的详细信息
+[21]增加字段
+alter table  RATP0_DFS_DSU_200512 add vc_proc_type varchar2(1) not null;
+[22]建立视图
+create view ezfp0ims as select * from ezf.ezfp0ims@tospeed13;
+create view ezfp0exc as select * from ezf.ezfp0exc@tospeed13;
+[23]sqlplus高级命令
+假设当前执行命令为：select * from tab; 
+(a)ppend　　　　 添加文本到缓冲区当前行尾　　　　a  order by tname　结果：select * from tab order by tname; 
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　（注：a后面跟2个空格） 
+(c)hange/old/new 在当前行用新的文本替换旧的文本　c/*/tname　　　　　结果：select tname from tab; 
+(c)hange/text　　从当前行删除文本　　　　　　　　c/tab　　　　　　　结果：select tname from ; 
+del　　　　　　　删除当前行 
+del n　　　　　　删除第n行 
+(i)nput 文本　　 在当前行之后添加一行 
+(l)ist　　　　　 显示缓冲区中所有行 
+(l)ist n　　　　 显示缓冲区中第 n 行 
+(l)ist m n　　　 显示缓冲区中 m 到 n 行 
+run　　　　　　　执行当前缓冲区的命令 
+/　　　　　　　　执行当前缓冲区的命令 
+r　　　　　　　　执行当前缓冲区的命令 
+@文件名　　　　　运行调入内存的sql文件，如： 
+
+SQL> edit s<回车> 
+如果当前目录下不存在s.sql文件，则系统自动生成s.sql文件， 
+在其中输入“select * from tab;”，存盘退出。 
+
+SQL> @s<回车> 
+系统会自动查询当前用户下的所有表、视图、同义词。 
+
+@@文件名　　　　 在.sql文件中调用令一个.sql文件时使用 
+
+save 文件名　　　将缓冲区的命令以文件方式存盘，缺省文件扩展名为.sql 
+get 文件名　　　 调入存盘的sql文件 
+start 文件名　　 运行调入内存的sql文件 
+
+spool 文件名　　 把这之后的各种操作及执行结果“假脱机”即存盘到磁盘文件上，默认文件扩展名为.lst 
+spool　　　　　　显示当前的“假脱机”状态 
+spool off　　　　停止输出 
+
+例： 
+SQL> spool a 
+SQL> spool 
+正假脱机到 A.LST 
+SQL> spool off 
+SQL> spool 
+当前无假脱机 
+
+
+exit　　　　　　 退出SQL*PLUS 
+desc 表名　　　　显示表的结构 
+show user　　　　显示当前连接用户 
+show error　　　 显示错误 
+show all　　　　 显示所有68个系统变量值 
+edit　　　　　　 打开默认编辑器，Windows系统中默认是notepad.exe，把缓冲区中最后一条SQL语句调入afiedt.buf文件中进行编辑 
+edit 文件名　　　把当前目录中指定的.sql文件调入编辑器进行编辑 
+
+clear screen　　 清空当前屏幕显示
+[24]查看数据库的对象
+Select * from user_objects 
+
+SQL> desc user_objects;
+ Name                                      Null?    Type
+ ----------------------------------------- -------- ----------------------------
+ OBJECT_NAME                                        VARCHAR2(128)
+ SUBOBJECT_NAME                                     VARCHAR2(30)
+ OBJECT_ID                                          NUMBER
+ DATA_OBJECT_ID                                     NUMBER
+ OBJECT_TYPE                                        VARCHAR2(18)
+ CREATED                                            DATE
+ LAST_DDL_TIME                                      DATE
+ TIMESTAMP                                          VARCHAR2(19)
+ STATUS                                             VARCHAR2(7)
+ TEMPORARY                                          VARCHAR2(1)
+ GENERATED                                          VARCHAR2(1)
+ SECONDARY                                          VARCHAR2(1)
+[25]载入数据
+[localhost]cat table.sql
+sqlldr test/test control=./kkk_0506.ctl
+[localhost]cat kkk_0506.ctl
+OPTIONS (direct = true)
+LOAD DATA 
+INFILE './kkk_0506.out' 
+APPEND 
+INTO table kkk_0506 
+FIELDS TERMINATED BY "|" 
+(subno,total,fee,status) 
+[localhost]cat kkk_0506.out
+13825157927|23|15|0
+13825009752|24|16|1
+执行table.sql，便将kkk_0506.out中数据载入了表kkk_0506中。
+
+[26]oracle倒入倒出数据
+Oracle导入导出工具 
+以AIX 4L + Oracle 817 为实验环境,说明导入导出工具的使用。 
+exp可以在不同数据库之间拷贝对象,数据库升级,数据库移植,重新生成CREATE脚本等。 
+
+exp导出 
+---------------------------------- 
+
+说明: 
+(1)exp是一个可执行文件,可以在Oracle客户端机器上执行,也可以在Oracle服务器端执行,假设我们安装Oracle服务器的目录是/home/oracle/oracle81,那么exp就在/home/oracle/oracle81/bin目录下。
+(2)exp导出的缺省的*.dmp文件,是二进制形式的,可以在不同的操作系统之间使用。
+(3)exp可以有交互式的执行方式和命令行式的执行方式。
+(4)exp的参数帮助,使用命令。 
+$exp help=y 
+
+输出结果: 
+
+关键字   说明(默认) 
+------------------------------------------------- 
+USERID   用户名/口令 
+BUFFER   数据缓冲区的大小 
+FILE   输出文件(EXPDAT.DMP) 
+COMPRESS   导入一个范围(Y) 
+GRANTS   导出权限(Y) 
+INDEXES   导出索引(Y) 
+ROWS   导出数据行(Y) 
+CONSTRAINTS   导出限制(Y) 
+LOG   屏幕输出的日志文件 
+DIRECT   直接路径(N) 
+FEEDBACK   显示每x行(0)的进度 
+FILESIZE   各转储文件的最大尺寸 
+QUERY   选定导出表子集的子句 
+VOLSIZE   写入每一个磁带卷的字节数 
+FULL   导出整个文件(N) 
+OWNER   所有者用户名列表 
+TABLES   表名列表 
+RECORDLENGTH   IO记录的长度 
+INCTYPE   增量导出类型 
+RECORD   跟踪增量导出(Y) 
+PARFILE   参数文件名 
+CONSISTENT   交叉表一致性 
+STATISTICS   分析对象(ESTIMATE) 
+TRIGGERS   导出触发器(Y) 
+
+下列关键字仅用于可传输的表空间 
+TRANSPORT_TABLESPACE   导出可传输的表空间元数据(N) 
+TABLESPACES   将传输的表空间列表 
+
+(5)exp具有三种导出模式:1用户,只导出属于指定用户的数据库对象,2表,只导出指定的表和分区,3数据库,数据库中的全部对象,结构,数据。 
+
+关于三种模式能导出的对象,列表如下: 
+对象    选项FULL=Y  选项OWNER=username  选项TABLE=tablename 说明
+表空间  全部对象定义    ~   ~   ~
+环境资源文件    全部对象    ~   ~   ~
+用户    全部对象定义    ~   ~   ~
+角色    全部对象    ~   ~   ~
+
+exp交互式导出的例子,"/**/"的文字是我加的注释: 
+---------------------------------------------------------------------- 
+$exp test_user/test_passwd 
+Export: Release 8.1.7.0.0 - Production on 星期六 11月 20 15:21:10 2004 
+(c) Copyright 2000 Oracle Corporation. All rights reserved. 
+连接到: Oracle8i Enterprise Edition Release 8.1.7.0.0 - 64bit Production 
+With the Partitioning option 
+JServer Release 8.1.7.0.0 - 64bit Production 
+输入数组提取缓冲区大小: 4096 > 
+导出文件: expdat.dmp> test_exp.dmp 
+(1)E(完整的数据库),(2)U(用户)或(3)T(表):(2)U > 1 
+导出权限(yes/no)：yes> 
+导出表数据(yes/no)：yes> 
+压缩区(yes/no)：yes> 
+已导出 ZHS16GBK 字符集和 ZHS16GBK NCHAR 字符集 
+即将导出整个数据库... 
+. 正在导出表空间定义 
+. 正在导出配置文件 
+. 正在导出用户定义 
+... 
+/*(省略....)*/ 
+... 
+在没有警告的情况下成功终止导出。 
+
+exp命令式导出的例子,"/**/"的文字是我加的注释: 
+---------------------------------------------------------------------- 
+导出整个数据库的信息,如下: 
+$exp test_user/test_passwd full=y file=test_db.dmp 
+导出数据库中的两个表student_table,teacher_table,如下: 
+$exp test_user/test_passwd tables=(student_table,teacher_table) file=test_exp1.dmp grants=y 
+导出Oracle用户名字为test_user的信息,如下: 
+$exp test_user/test_passwd users=test_user file=test_user1.dmp grants=y 
+exp工具可以在导出表的时候,加上选择条件,如下: 
+选择student_table表中的学生,符合条件"studentname='jingweidong' and age<26"。 
+$exp test_user/test_passwd tables=student_table query=\"where studentname=\'jingweidong\' and age\<26\" file=test_exp2.dmp 
+在query子句中使用查询条件会很麻烦,Windows和UNIX的命令行方式,写query子句的语法也不一样,例如,在windows中,需要在WHERE语句的两端使用三个双引号,即"""where age=26"""的形式;而在UNIX环境中,双引号{")和单引号(')之前要加上斜线"\",即\"where age=26\"的形式。方便一点的办法,就是把原始数据使用查询条件过滤到一个视图中,再使用exp导出数据。
+还可以使用带有query选项的参数文件(PARFILE),利用可以参数文件不考虑操作系统平台而使用完全相同的语法写qeury子句的条件。例如,创建一个名字为parfilename1的参数文件,参数文件中包含query="where age=26",则exp命令这样写: 
+$exp test_user/test_passwd tables=student_table parfile=parfilename1 file=test_exp4.dmp 
+此外,exp的参数选项:log,feedback,buffer,compress等. 
+
+
+imp导出
+---------------------------------- 
+
+imp和exp放在同一个目录下面,imp把exp导出的文件导入到数据库中,imp也有三种模式:1用户,2表,3数据库。 
+imp内部操作的步骤,分为:1创建表,2插入数据,3创建索引,4创建触发器,约束条件等。 
+
+imp交互式的例子: 
+---------------------------------- 
+说明: 
+(1)权限足够,用户a的数据倒入用户b的数据库中,特别注意用户是否有IMP_FULL_DATABASE权限。 
+(2)导入对象是否已经存在,如果存在,要drop掉。 
+(3)数据库有主外键约束,不符合主外键约束时,imp导入数据会失败,应该首先导入主表,再导入依存表,使目标导入对象的主外键约束无效,导入数据后, 再使主外键约束有效。
+(4)导入大表时,容易引起存储分配失败,因为缺省的EX导出数据P时,选项compress=Y, 即把所有的数据压缩在一个数据块上,imp导入数据时, 如果数据不是存在于一个连续的大数据块,则imp导入会失败.解决办法:exp导出大数据表的时候,选择compress=N。
+(5)imp参数的帮助,使用命令。 
+$imp help=y 
+
+输出结果: 
+
+关键字   说明(默认) 
+------------------------------------------------- 
+SHOW   只列出文件内容(N) 
+IGNORE   忽略创建错误(N) 
+GRANTS   导入权限(Y) 
+INDEXES   导入索引(Y) 
+ROWS   导入数据行(Y) 
+LOG   屏幕输出的日志文件 
+DESTROY   覆盖表空间数据文件(N) 
+INDEXFILE   将表/索引信息写入指定的文件 
+SKIP_UNUSABLE_INDEXES   跳过不可用索引的维护(N) 
+ANALYZE   执行转储文件中的 ANALYZE 语句(Y) 
+FEEDBACK   显示每x行(0)的进度 
+TOID_NOVALIDATE   跳过指定类型id的校验 
+FILESIZE   各转储文件的最大尺寸 
+RECALCULATE_STATISTICS   重新计算统计值(N) 
+VOLSIZE   磁带上文件中各卷文件的字节数 
+FULL   导入整个文件(N) 
+FROMUSER   所有人用户名列表 
+TOUSER   用户名列表 
+TABLES   表名列表 
+RECORDLENGTH   IO 记录的长度 
+INCTYPE   增量导入类型 
+COMMIT   提交数组插入(N) 
+PARFILE   参数文件名 
+CONSTRAINTS   导入限制(Y) 
+
+下列关键字仅用于可传输的表空间 
+TRANSPORT_TABLESPACE   导入可传输的表空间元数据(N) 
+TABLESPACES   将要传输到数据库的表空间 
+DATAFILES   将要传输到数据库的数据文件 
+TTS_OWNERS   拥有可传输表空间集中数据的用户 
+
+假设zxdbg_1.dmp是exp工具导出的表数据. 
+$imp test_user/test_passwd 
+导入文件: expdat.dmp> zxdbg_1.dmp /*用户选择导入的文件*/ 
+输入插入缓冲区大小（最小为 8192 ) 30720> 
+经由常规路径导出由EXPORT:V08.01.07 创建的文件 
+已经完成ZHS16GBK字符集和ZHS16GBK NCHAR 字符集中的导入 
+只列出导入文件的内容(yes/no)：no> 
+由于对象已存在, 忽略创建错误(yes/no)：no> 
+导入权限(yes/no)：yes> 
+导入表数据(yes/no)：yes> 
+导入整个导出文件(yes/no)：no> 
+用户名: test_user 
+输入表 (T) 或分区 (T: P) 名称。空列表表示用户的所有表 
+输入表 (T) 或分区 (T: P) 的名称或。如果完成: 
+. 正在将test_user的对象导入到 test_user 
+成功终止导入，但出现警告。 
+
+imp命令式的例子: 
+---------------------------------- 
+导入整个数据库(当前用户必须有IMP_FULL_DATABASE权限和DBA权限),如下: 
+$imp test_user/test_passwd owner=test_user file=test_db.dmp 
+[27]备份表数据，并恢复
+倒出：
+exp test/test tables=TABLE1 file=TABLE1.dmp grants=y;
+ 倒入：
+imp test/test file=TABLE1.dmp full=y;
+[28]更改表名
+SQL> raname kkk_0506 to kkk_0506_bak;
+[100]informix错误代码意思
+106:$ finder 936
+[101]多表查询
+select A.int_file_id,A.vc_date,A.vc_excid,B.vc_date
+from
+DATP0_CHKDUP_EXPORT A
+LEFT OUTER JOIN
+datp0_chkdup_dccm_cdr_deb B
+on
+A.int_file_id = B.int_file_id
+where A.vc_date != B.vc_date
+--and B.vc_date ='20060302'
+[102]多表update
+update之前，最好先备份DATP0_CHKDUP_EXPORT
+ 
+update datp0_chkdup_export 
+set 
+vc_date = (select vc_date from datp0_chkdup_dccm_cdr_deb where datp0_chkdup_export.int_file_id = int_file_id and datp0_chkdup_export.vc_date!=vc_date) 
+where 
+int_file_id in (select int_file_id from datp0_chkdup_dccm_cdr_deb where datp0_chkdup_export.vc_date != vc_date and datp0_chkdup_export.int_file_id = int_file_id)
+ 
+一共update179条
+再可通过如下语句检查：
+select A.vc_date export_date, B.vc_date dccm_date, A.int_file_id,A.dt_proc_date 
+from datp0_chkdup_export A 
+LEFT OUTER JOIN datp0_chkdup_dccm_cdr_deb B 
+on A.int_file_id = B.int_file_id 
+where A.vc_date != B.vc_date
+ 
+没有记录就可以了。
+

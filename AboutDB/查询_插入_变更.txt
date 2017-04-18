@@ -1,0 +1,233 @@
+SQL语言快速入门之二  日期：2005年4月15日 作者：-=不详=- 人气： 人 [ 大 中 小 ]
+ 
+
+
+Truncate Table [表名] 清空表
+
+
+
+创建表格
+
+SQL语言中的create table语句被用来建立新的数据库表格。Create table语句的使用格式如下：
+
+create table tablename
+
+(column1 data type,
+
+column2 data type,
+
+column3 data type);
+
+如果用户希望在建立新表格时规定列的限制条件，可以使用可选的条件选项：
+
+create table tablename
+
+(column1 data type [constraint],
+
+column2 data type [constraint],
+
+column3 data type [constraint]);
+
+举例如下：
+
+create table employee
+
+(firstname varchar(15),
+
+lastname varchar(20),
+
+age number(3),
+
+address varchar(30),
+
+city varchar(20));
+
+简单来说，创建新表格时，在关键词create table后面加入所要建立的表格的名称，然后在括号内顺次设定各列的名称，数据类型，以及可选的限制条件等。注意，所有的SQL语句在结尾处都要使用“；”符号。
+
+使用SQL语句创建的数据库表格和表格中列的名称必须以字母开头，后面可以使用字母，数字或下划线，名称的长度不能超过30个字符。注意，用户在选择表格名称时不要使用SQL语言中的保留关键词，如select, create, insert等，作为表格或列的名称。
+
+数据类型用来设定某一个具体列中数据的类型。例如，在姓名列中只能采用varchar或char的数据类型，而不能使用number的数据类型。
+
+SQL语言中较为常用的数据类型为：
+
+char(size)：固定长度字符串，其中括号中的size用来设定字符串的最大长度。Char类型的最大长度为255字节。
+
+varchar(size)：可变长度字符串，最大长度由size设定。
+
+number(size)：数字类型，其中数字的最大位数由size设定。
+
+Date：日期类型。
+
+number(size,d)：数字类型，size决定该数字总的最大位数，而d则用于设定该数字在小数点后的位数。
+
+最后，在创建新表格时需要注意的一点就是表格中列的限制条件。所谓限制条件就是当向特定列输入数据时所必须遵守的规则。例如，unique这一限制条件要求某一列中不能存在两个值相同的记录，所有记录的值都必须是唯一的。除unique之外，较为常用的列的限制条件还包括not null和primary key等。Not null用来规定表格中某一列的值不能为空。Primary key则为表格中的所有记录规定了唯一的标识符。
+
+
+向表格中插入数据
+
+SQL语言使用insert语句向数据库表格中插入或添加新的数据行。Insert语句的使用格式如下：
+
+insert into tablename
+
+(first_column,...last_column)
+
+values (first_value,...last_value);
+
+例如：
+
+insert into employee
+
+(firstname, lastname, age, address, city)
+
+values (‘Li’, ‘Ming’, 45, ‘No.77 Changan Road’, ‘Beijing”);
+
+简单来说，当向数据库表格中添加新记录时，在关键词insert into后面输入所要添加的表格名称，然后在括号中列出将要添加新值的列的名称。最后，在关键词values的后面按照前面输入的列的顺序对应的输入所有要添加的记录值。
+
+
+更新记录
+
+SQL语言使用update语句更新或修改满足规定条件的现有记录。Update语句的格式为：
+
+update tablename
+
+set columnname = newvalue [, nextcolumn = newvalue2...]
+
+where columnname OPERATOR value [and|or column OPERATOR value];
+
+例如：
+
+update employee
+
+set age = age+1
+
+where first_name= ‘Mary’and last_name= ‘Williams’;
+
+使用update语句时，关键一点就是要设定好用于进行判断的where条件从句。
+
+
+删除记录
+
+SQL语言使用delete语句删除数据库表格中的行或记录。Delete语句的格式为：
+
+delete from tablename
+
+where columnname OPERATOR value [and|or column OPERATOR value];
+
+例如：
+
+delete from employee
+
+where lastname = May;
+
+简单来说，当需要删除某一行或某个记录时，在delete from关键词之后输入表格名称，然后在where从句中设定删除记录的判断条件。注意，如果用户在使用delete语句时不设定where从句，则表格中的所有记录将全部被删除。
+
+
+删除数据库表格
+
+在SQL语言中使用drop table命令删除某个表格以及该表格中的所有记录。Drop table命令的使用格式为：
+
+drop table tablename；
+
+例如：
+
+drop table employee;
+
+如果用户希望将某个数据库表格完全删除，只需要在drop table命令后输入希望删除的表格名称即可。Drop table命令的作用与删除表格中的所有记录不同。删除表格中的全部记录之后，该表格仍然存在，而且表格中列的信息不会改变。而使用drop table命令则会将整个数据库表格的所有信息全部删除。
+
+
+以上，我们对SQL语言主要的命令和语句进行了较为详细的介绍。应该说SQL语句的语法结构和风格还是相当简单和直观的，只要用户结合实践多加练习，一定会在短期内迅速掌握。
+
+
+
+
+unload to /DB1/DB1_CDR3/tstore/sysp0_inf_dissrv_200703 select * from sysp0_inf_dissrv_200703
+
+load from /DB1/DB1_CDR3/tstore/sysp0_inf_dissrv_200703 insert into sysp0_inf_dissrv_200704 
+Update  sysp0_inf_dissrv_yyyymm  set vc_begin_date=’20050501’,vc_end_date=’20050560’; 
+
+insert.sh 20070416
+
+改表结构 ： alter table ezfp0bus  add(
+            fullname varchar2(60)
+            )
+
+设置int_failtimes为0
+
+Update  datp0_air_credit
+Set int_failtimes = 0
+Where vc_master = ‘LL’
+
+
+
+
+
+[数据流向/fs使用/ora使用/shell,参数使用]
+1.任务目的
+2.涉及系统或模块
+speed11-14,speed02,rise41
+3.过程
+speed11-14,speed02,rise41 alter table ezfp0bus add (fullname varchar2(60)); 
+speed01,02,rise41 alter table ezfp0c2n add (fullname varchar2(60));
+speed01:重建view: create view ezf.ezfp0bus as select * from ezf.ezfp0bus@tospeed02
+4.检查点
+
+
+，增加字段fullname varchar2(60)
+1.ezfp0bus:speed11-14,speed02,rise41
+2.ezfp0c2n:speed01-02,rise41
+3.重建01的view:
+create view ezf.ezfp0bus as 
+select * from ezf.ezfp0bus@tospeed02
+
+
+
+
+清空表
+
+　　如果你想删除表中所有数据，清空表，可以考虑使用DDL语言的TRUNCATE语句。TRUNCATE就像没有WHERE子句的DELETE命令一样。TRUNCATE将删除表中所有行。TRUNCATE不是DML语句是DDL语句，他和DELETE右不同的特点。
+
+TRUNCATE TABLE (schema)table DROP(REUSE) STORAGE  
+
+　　STORAGE子串是可选的，缺省是DROP STORAGE。当使用DROP STORAGE时将缩短表和表索引，将表收缩到最小范围，并重新设置NEXT参数。REUSE STORAGE不会缩短表或者调整NEXT参数。
+
+　　TRUNCATE和DELETE有以下几点区别
+
+　　1、TRUNCATE在各种表上无论是大的还是小的都非常快。如果有ROLLBACK命令DELETE将被撤销，而TRUNCATE则不会被撤销。
+
+　　2、TRUNCATE是一个DDL语言，向其他所有的DDL语言一样，他将被隐式提交，不能对TRUNCATE使用ROLLBACK命令。
+
+　　3、TRUNCATE将重新设置高水平线和所有的索引。在对整个表和索引进行完全浏览时，经过TRUNCATE操作后的表比DELETE操作后的表要快得多。
+
+　　4、TRUNCATE不能触发任何DELETE触发器。
+
+　　5、不能授予任何人清空他人的表的权限。
+
+　　6、当表被清空后表和表的索引讲重新设置成初始大小，而delete则不能。
+
+　　7、不能清空父表。
+
+　　SELECT FOR UPDATE
+
+　　select for update语句用于锁定行，阻止其他用户在该行上修改数据。当该行被锁定后其他用户可以用SELECT语句查询该行的数据，但不能修改或锁定该行。
+
+　　锁定表
+
+　　LOCK语句常常用于锁定整个表。当表被锁定后，大多数DML语言不能在该表上使用。LOCK语法如下：
+
+LOCK schema table IN lock_mode 
+
+　　其中lock_mode有两个选项：
+
+　　　share 共享方式
+
+　　　exclusive 唯一方式
+
+　　例：
+
+LOCK TABLE intentory IN EXCLUSIVE MODE 
+
+　　死锁
+
+　　当两个事务都被锁定，并且互相都在等待另一个被解锁，这种情况称为死锁。
+
+　　当出现死锁时，ORACLE将检测死锁条件，并返回一个异常。

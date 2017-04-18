@@ -1,0 +1,307 @@
+下面介绍的是导入导出的实例，向导入导出看实例基本上就可以完成，因为导入导出很简单。
+数据导出：
+1 将数据库TEST完全导出,用户名system 密码manager 导出到D:\daochu.dmp中
+   exp system/manager@TEST file=d:\daochu.dmp full=y
+2 将数据库中system用户与sys用户的表导出
+   exp system/manager@TEST file=d:\daochu.dmp owner=(system,sys)
+3 将数据库中的表table1 、table2导出
+   exp system/manager@TEST file=d:\daochu.dmp tables=(table1,table2)
+4 将数据库中的表table1中的字段filed1以"00"打头的数据导出
+   exp system/manager@TEST file=d:\daochu.dmp tables=(table1) query=\" where filed1 like '00%'\"
+  
+     上面是常用的导出，对于压缩我不太在意，用winzip把dmp文件可以很好的压缩。
+                     不过在上面命令后面 加上 compress=y  就可以了
+
+数据的导入
+1 将D:\daochu.dmp 中的数据导入 TEST数据库中。
+   imp system/manager@TEST  file=d:\daochu.dmp
+   上面可能有点问题，因为有的表已经存在，然后它就报错，对该表就不进行导入。
+   在后面加上 ignore=y 就可以了。
+2 将d:\daochu.dmp中的表table1 导入
+imp system/manager@TEST  file=d:\daochu.dmp  tables=(table1)
+
+基本上上面的导入导出够用了。
+
+
+1：exp "ezf/passwd" file=./hehe.dmp tables=hehe(单个表表名处不能加括号，多个表的话：tables＝（hehe，haha)
+
+
+2：imp "ezf/hh*7.d" file=./hehe.dmp ignore=y
+
+Import: Release 8.1.7.4.0 - Production on Sun Oct 28 14:51:07 2007
+
+(c) Copyright 2000 Oracle Corporation.  All rights reserved.
+
+
+Connected to: Oracle8i Enterprise Edition Release 8.1.7.4.0 - 64bit Production
+With the Partitioning option
+JServer Release 8.1.7.4.0 - 64bit Production
+
+Export file created by EXPORT:V08.01.07 via conventional path
+import done in ZHS16GBK character set and ZHS16GBK NCHAR character set
+. importing EZF's objects into EZF
+. . importing table                         "HEHE"          2 rows imported
+Import terminated successfully without warnings.
+
+--使用sqlldr命令导入数据
+
+--先创建存储导入数据的表
+CREATE TABLE TEST 
+(SCDM  VARCHAR2(2),
+ JLLX  VARCHAR2(3),
+ JSFS  VARCHAR2(3),
+ QSRQ  VARCHAR2(10),
+ JSRQ  VARCHAR2(10),
+ XWH  VARCHAR2(6),
+ QSBH  VARCHAR2(8),
+ ZJZH  VARCHAR2(28),
+ YHDM  VARCHAR2(5),
+ SJMJE NUMBER(12,2),
+ BJMJE NUMBER(12,2),
+ QSJE  NUMBER(12,2),
+ YHS  NUMBER(10,2),
+ JSF  NUMBER(10,2),
+ GHF  NUMBER(10,2),
+ ZGF  NUMBER(10,2),
+ SXF  NUMBER(10,2),
+ QTFY1 NUMBER(10,2),
+ QTFY2 NUMBER(10,2),
+ QTFY3 NUMBER(10,2),
+ SJSF  NUMBER(20,2),
+ QSBZ  VARCHAR2(20),
+ YYRQ  VARCHAR2(10),
+ BCSM  VARCHAR2(40));
+ --控制文件test.ctl
+LOAD DATA
+INFILE 'f:\source\a.dat'
+APPEND INTO TABLE TEST
+FIELDS TERMINATED BY X"09"
+TRAILING NULLCOLS
+(SCDM,JLLX,JSFS,QSRQ,JSRQ,XWH,QSBH,ZJZH,YHDM,SJMJE,BJMJE,QSJE,YHS,JSF,GHF,ZGF,SXF,QTFY1,QTFY2,QTFY3,SJSF,QSBZ,YYRQ,BCSM)
+--参数文件test.par
+userid=system/oracle@orcl
+control='test.ctl'
+data='f:\source\a.dat'
+log='test.log'
+skip=1
+bindsize=12800000
+readsize=12800000
+rows=500
+/*
+SQL*Loader: Release 10.2.0.1.0 - Production on 星期二 5月 17 18:09:44 2005
+
+Copyright (c) 1982, 2005, Oracle.  All rights reserved.
+
+控制文件:      test.ctl
+数据文件:      f:\source\a.dat
+  错误文件:    a.bad
+  废弃文件:    未作指定
+ 
+(可废弃所有记录)
+
+要加载的数: ALL
+要跳过的数: 1
+允许的错误: 50
+绑定数组: 500 行, 最大 12800000 字节
+继续:    未作指定
+所用路径:       常规
+
+表 TEST,已加载从每个逻辑记录
+插入选项对此表 APPEND 生效
+TRAILING NULLCOLS 选项生效
+
+   列名                        位置      长度  中止 包装数据类型
+------------------------------ ---------- ----- ---- ---- ---------------------
+SCDM                                FIRST     *  WHT      CHARACTER            
+JLLX                                 NEXT     *  WHT      CHARACTER            
+JSFS                                 NEXT     *  WHT      CHARACTER            
+QSRQ                                 NEXT     *  WHT      CHARACTER            
+JSRQ                                 NEXT     *  WHT      CHARACTER            
+XWH                                  NEXT     *  WHT      CHARACTER            
+QSBH                                 NEXT     *  WHT      CHARACTER            
+ZJZH                                 NEXT     *  WHT      CHARACTER            
+YHDM                                 NEXT     *  WHT      CHARACTER            
+SJMJE                                NEXT     *  WHT      CHARACTER            
+BJMJE                                NEXT     *  WHT      CHARACTER            
+QSJE                                 NEXT     *  WHT      CHARACTER            
+YHS                                  NEXT     *  WHT      CHARACTER            
+JSF                                  NEXT     *  WHT      CHARACTER            
+GHF                                  NEXT     *  WHT      CHARACTER            
+ZGF                                  NEXT     *  WHT      CHARACTER            
+SXF                                  NEXT     *  WHT      CHARACTER            
+QTFY1                                NEXT     *  WHT      CHARACTER            
+QTFY2                                NEXT     *  WHT      CHARACTER            
+QTFY3                                NEXT     *  WHT      CHARACTER            
+SJSF                                 NEXT     *  WHT      CHARACTER            
+QSBZ                                 NEXT     *  WHT      CHARACTER            
+YYRQ                                 NEXT     *  WHT      CHARACTER            
+BCSM                                 NEXT     *  WHT      CHARACTER            
+
+
+表 TEST:
+  765 行 加载成功。
+  由于数据错误, 0 行 没有加载。
+  由于所有 WHEN 子句失败, 0 行 没有加载。
+  由于所有字段都为空的, 0 行 没有加载。
+
+
+为绑定数组分配的空间:               3096000 字节 (500 行)
+读取   缓冲区字节数:12800000
+
+跳过的逻辑记录总数:          1
+读取的逻辑记录总数:           765
+拒绝的逻辑记录总数:          0
+废弃的逻辑记录总数:        0
+
+从 星期二 5月  17 18:09:44 2005 开始运行
+在 星期二 5月  17 18:09:56 2005 处运行结束
+
+经过时间为: 00: 00: 11.79
+CPU 时间为: 00: 00: 00.08
+*/
+
+
+--使用分别使用EXP、EXPDP导出hr用户下的所有表. (通过编写par文件实现）
+--用 EXP导出HR下的所有表 hr.par 参数文件
+userid=system/oracle@orcl
+owner=HR
+file=hr.dmp
+filesize=500M
+log=hr.log
+
+/*
+即将导出指定的用户...
+. 正在导出 pre-schema 过程对象和操作
+. 正在导出用户 HR 的外部函数库名
+. 导出 PUBLIC 类型同义词
+. 正在导出专用类型同义词
+. 正在导出用户 HR 的对象类型定义
+即将导出 HR 的对象...
+. 正在导出数据库链接
+. 正在导出序号
+. 正在导出簇定义
+. 即将导出 HR 的表通过常规路径...
+. . 正在导出表                       COUNTRIES导出了          25 行
+. . 正在导出表                     DEPARTMENTS导出了          27 行
+. . 正在导出表                       EMPLOYEES导出了         107 行
+. . 正在导出表                            JOBS导出了          19 行
+. . 正在导出表                     JOB_HISTORY导出了          10 行
+. . 正在导出表                       LOCATIONS导出了          23 行
+. . 正在导出表                         REGIONS导出了           4 行
+. 正在导出同义词
+. 正在导出视图
+. 正在导出存储过程
+. 正在导出运算符
+. 正在导出引用完整性约束条件
+. 正在导出触发器
+. 正在导出索引类型
+. 正在导出位图, 功能性索引和可扩展索引
+. 正在导出后期表活动
+. 正在导出实体化视图
+. 正在导出快照日志
+. 正在导出作业队列
+. 正在导出刷新组和子组
+. 正在导出维
+. 正在导出 post-schema 过程对象和操作
+. 正在导出统计信息
+成功终止导出, 没有出现警告。*/
+
+
+--利用EXPDP导出HR下的表
+--创建工作目录
+CREATE OR REPLACE DIRECTORY documents AS 'f:\work';
+--参数文件hr1.par
+userid=system/oracle@orcl
+dumpfile=hr1.dmp
+logfile=hr1.log
+directory=documents
+job_name=job1
+schemas=HR
+/*
+连接到: Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning, OLAP and Data Mining options
+启动 "SYSTEM"."JOB1":  parfile=hr1.par 
+正在使用 BLOCKS 方法进行估计...
+处理对象类型 SCHEMA_EXPORT/TABLE/TABLE_DATA
+使用 BLOCKS 方法的总估计: 448 KB
+处理对象类型 SCHEMA_EXPORT/USER
+处理对象类型 SCHEMA_EXPORT/SYSTEM_GRANT
+处理对象类型 SCHEMA_EXPORT/ROLE_GRANT
+处理对象类型 SCHEMA_EXPORT/DEFAULT_ROLE
+处理对象类型 SCHEMA_EXPORT/PRE_SCHEMA/PROCACT_SCHEMA
+处理对象类型 SCHEMA_EXPORT/SEQUENCE/SEQUENCE
+处理对象类型 SCHEMA_EXPORT/TABLE/TABLE
+处理对象类型 SCHEMA_EXPORT/TABLE/GRANT/OWNER_GRANT/OBJECT_GRANT
+处理对象类型 SCHEMA_EXPORT/TABLE/INDEX/INDEX
+处理对象类型 SCHEMA_EXPORT/TABLE/CONSTRAINT/CONSTRAINT
+处理对象类型 SCHEMA_EXPORT/TABLE/INDEX/STATISTICS/INDEX_STATISTICS
+处理对象类型 SCHEMA_EXPORT/TABLE/COMMENT
+处理对象类型 SCHEMA_EXPORT/PROCEDURE/PROCEDURE
+处理对象类型 SCHEMA_EXPORT/PROCEDURE/ALTER_PROCEDURE
+处理对象类型 SCHEMA_EXPORT/VIEW/VIEW
+处理对象类型 SCHEMA_EXPORT/TABLE/CONSTRAINT/REF_CONSTRAINT
+处理对象类型 SCHEMA_EXPORT/TABLE/TRIGGER
+处理对象类型 SCHEMA_EXPORT/TABLE/STATISTICS/TABLE_STATISTICS
+. . 导出了 "HR"."COUNTRIES"                            6.085 KB      25 行
+. . 导出了 "HR"."DEPARTMENTS"                          6.632 KB      27 行
+. . 导出了 "HR"."EMPLOYEES"                            15.76 KB     107 行
+. . 导出了 "HR"."JOBS"                                 6.609 KB      19 行
+. . 导出了 "HR"."JOB_HISTORY"                          6.585 KB      10 行
+. . 导出了 "HR"."LOCATIONS"                            7.710 KB      23 行
+. . 导出了 "HR"."REGIONS"                              5.289 KB       4 行
+已成功加载/卸载了主表 "SYSTEM"."JOB1" 
+******************************************************************************
+SYSTEM.JOB1 的转储文件集为:
+  F:\WORK\HR1.DMP
+作业 "SYSTEM"."JOB1" 已于 18:57:40 成功完成*/
+
+
+--编写一个存储过程P_DROPTABLE,删除HR用户下的所有表
+
+老师，为了安全起见，我怕万一没导好出错，所以我就创建一个临时表，然后导出SCOTT下的某张表
+再把它导回去
+
+CREATE TABLE EMP_TEST AS SELECT * FROM SCOTT.EMP;
+
+导出该张表，过程跟前面一样，我用EXP为例子
+--以下为导出参数文件emp_test.par
+userid=system/oracle@orcl
+tables=EMP_TEST
+file=emp_test.dmp
+filesize=10M
+log=emp_test.log
+
+--接下来删除该表
+
+CREATE OR REPLACE PROCEDURE P_DROPTABLE AS
+BEGIN
+EXECUTE IMMEDIATE 'TRUNCATE TABLE EMP_TEST';
+COMMIT;
+END;
+
+--调用存储过程CALL P_DROPTABLE();
+SELECT * FROM EMP_TEST;--验证EMP_TEST表已经被删除
+DROP TABLE EMP_TEST;
+--用IMP导入
+--以下为参数文件
+userid=system/oracle
+file=emp_test.dmp
+FULL=Y
+filesize=10M
+log=emp_test.log
+
+连接到: Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning, OLAP and Data Mining options
+
+经由常规路径由 EXPORT:V10.02.01 创建的导出文件
+已经完成 ZHS16GBK 字符集和 AL16UTF16 NCHAR 字符集中的导入
+. 正在将 SYSTEM 的对象导入到 SYSTEM
+. 正在将 SYSTEM 的对象导入到 SYSTEM
+. . 正在导入表                      "EMP_TEST"导入了          14 行
+成功终止导入, 没有出现警告。
+
+
+--验证一下是否真的导入
+
+SELECT * FROM EMP_TEST; 
+

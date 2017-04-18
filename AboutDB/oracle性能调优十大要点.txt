@@ -1,0 +1,764 @@
+oracle性能调整的十大要点
+    1、Shared pool tunning
+    Shared pool的优化应该放在优先考虑，因为一个cache miss在shared pool中发生比在data buffer中发生导致的成本更高，由于dictionary数据一般比library cache中的数据在内存中保存的时间长，所以关键是library cache的优化。
+    Gets：（parse）在namespace中查找对象的次数；
+    Pins：（execution）在namespace中读取或执行对象的次数；
+    Reloads：(reparse)在执行阶段library cache misses的次数，导致sql需要重新解析。
+    1） 检查v$librarycache中sql area的gethitratio是否超过90％，如果未超过90％，应该检查应用代码，提高应用代码的效率。
+    Select gethitratio from v$librarycache where namespace=’sql area’;
+    2) v$librarycache中reloads/pins的比率应该小于1％，如果大于1％，应该增加参数shared_pool_size的值。
+    Select sum(pins) “executions”,sum(reloads) “cache misses”,sum(reloads)/sum(pins) from v$librarycache;
+    reloads/pins>1%有两种可能，一种是library cache空间不足，一种是sql中引用的对象不合法。
+    3）shared pool reserved size一般是shared pool size的10％，不能超过50％。V$shared_pool_reserved中的request misses＝0或没有持续增长，或者free_memory大于shared pool reserved size的50%，表明shared pool reserved size过大，可以压缩。
+    4）将大的匿名pl/sql代码块转换成小的匿名pl/sql代码块调用存储过程。
+    5）从9i开始，可以将execution plan与sql语句一起保存在library cache中，方便进行性能诊断。从v$sql_plan中可以看到execution plans。
+    6）保留大的对象在shared pool中。大的对象是造成内存碎片的主要原因，为了腾出空间许多小对象需要移出内存，从而影响了用户的性能。因此需要将一些常用的大的对象保留在shared pool中，下列对象需要保留在shared pool中：
+    a. 经常使用的存储过程；
+    b. 经常操作的表上的已编译的触发器
+    c. Sequence，因为Sequence移出shared pool后可能产生号码丢失。
+    查找没有保存在library cache中的大对象：
+    Select * from v$db_object_cache where sharable_mem>10000 and type in ('PACKAGE','PROCEDURE','FUNCTION','PACKAGE BODY') and kept='NO';
+    将这些对象保存在library cache中：
+    Execute dbms_shared_pool.keep(‘package_name’);
+    对应脚本：dbmspool.sql
+    7)查找是否存在过大的匿名pl/sql代码块。两种解决方案：
+    A．转换成小的匿名块调用存储过程
+    B．将其保留在shared pool中
+    查找是否存在过大的匿名pl/sql块：
+    Select sql_text from v$sqlarea where command_type=47 and length(sql_text)>500;
+    8）Dictionary cache的 优化 
+    避免出现Dictionary cache的misses，或者misses的数量保持稳定,只能通过调整shared_pool_size来间接调整dictionary cache的大小。
+    Percent misses应该很低：大部分应该低于2％，合计应该低于15％
+    Select sum(getmisses)/sum(gets) from v$rowcache;
+    若超过15％，增加shared_pool_size的值。
+    2、Buffer Cache
+    1）granule大小的设置，db_cache_size以字节为单位定义了default buffer pool的大小。
+    如果SGA<128M，granule=4M,否则granule＝16M，即需要调整sga的时候以granule为单位增加大小，并且sga的大小应该是granule的整数倍。
+    2) 根据v$db_cache_advice调整buffer cache的大小
+    SELECT size_for_estimate,buffers_for_estimate,estd_physical_read_factor,estd_physical_reads FROM v$db_cache_advice WHERE NAME='DEFAULT' AND advice_status='ON' AND block_size=(SELECT Value FROM v$parameter WHERE NAME='db_block_size');
+    estd_physical_read_factor<=1
+    3) 统计buffer cache的cache hit ratio>90%，如果低于90％，可以用下列方案解决：
+    增加buffer cache的值；
+    使用多个buffer pool；
+    Cache table；
+    为 sorting and parallel reads 建独立的buffer cache；
+    SELECT NAME,value FROM v$sysstat WHERE NAME IN ('session logical reads','physical reads','physical reads direct','physical reads direct(lob)');
+    Cache hit ratio=1-(physical reads-physical reads direct-physical reads direct (lob))/session logical reads;
+    Select 1-(phy.value-dir.value-lob.value)/log.value from v$sysstat log, v$sysstat phy, v$sysstat dir, v$sysstat LOB where log.name='session logical reads' and phy.name='physical reads' and dir.name='physical reads direct' and lob.name='physical reads direct (lob)';
+    影响cache hit ratio的因素：
+    全表扫描；应用设计；大表的随机访问；cache hits的不均衡分布
+    4）表空间使用自动空间管理，消除了自由空间列表的需求，可以减少数据库的竞争
+    3、其他SGA对象
+    1）redo log buffer
+    对应的参数是log_buffer，缺省值与 OS相关，一般是500K。检查v$session_wait中是否存在log buffer wait,v$sysstat中是否存在redo buffer allocation retries
+    A、检查是否存在log buffer wait：
+    Select * from v$session_wait where event=’log buffer wait’ ;
+    如果出现等待，一是可以增加log buffer的大小，也可以通过将log 文件移到访问速度更快的磁盘来解决。
+    B、Select name,value from v$sysstat where name in (‘redo buffer allocation retries’,’redo entries’)
+    Redo buffer allocation retries接近0，小于redo entries 的1％，如果一直在增长，表明进程已经不得不等待redo buffer的空间。如果Redo buffer allocation retries过大，增加log_buffer的值。
+    C、检查日志文件上是否存在磁盘IO竞争现象
+    Select event,total_waits,time_waited,average_wait from v$system_event where event like ‘log file switch completion%’;
+    如果存在竞争，可以考虑将log文件转移到独立的、更快的存储设备上或增大log文件。
+    D、检查点的设置是否合理
+    检查alert.log文件中，是否存在‘checkpoint not complete’；
+    Select event,total_waits,time_waited,average_wait from v$system_event where event like ‘log file switch (check%’;
+    如果存在等待，调整log_checkpoint_interval、log_checkpoint_timeout的设置。
+    E、检查log archiver的工作
+    Select event,total_waits,time_waited,average_wait from v$system_event where event like ‘log file switch (arch%’;
+    如果存在等待，检查保存归档日志的存储设备是否已满，增加日志文件组，调整log_archiver_max_processes。
+    F、DB_block_checksum=true，因此增加了性能负担。（为了保证数据的一致性，oracle的写数据的时候加一个checksum在block上，在读数据的时候对checksum进行验证）
+    2）java pool
+    对于大的应用，java_pool_size应>=50M，对于一般的java存储过程，缺省的20M已经够用了。
+    3）检查是否需要调整DBWn
+    Select total_waits from v$system_event where event=’free buffer waits’;
+
+
+
+二、数据库配置和IO问题
+    降低磁盘的IO
+    分散磁盘的IO
+    表空间使用本地管理
+    1、将文件分散到不同的设备上
+    1）将数据文件与日志文件分开
+    2）减少与服务器无关的磁盘IO
+    3）评估裸设备的使用
+    4）分割表数据
+    2、表空间的使用
+    系统表空间保留给数据字典对象
+    创建本地管理表空间以避免空间管理问题
+    将表和索引分散到独立的表空间中
+    使用独立的回滚表空间
+    将大的数据库对象保存在各自独立的表空间中
+    创建一个或多个独立的临时表空间
+    下列数据库对象应该有单独的表空间：
+    数据字典、回滚段、索引、临时段、表、大对象
+    3、检查IO统计数据
+    Select phyrds,phywrts,d.name from v$datafile d,v$filestat f where f.file#=d.file# order by d.name;
+    检查最有可能引起磁盘IO瓶颈的文件。
+    4、分割文件
+    可以通过RAID和手工进行
+    Alter table table_name allocate extent (datafile ‘fiile_name’ size 10M);
+    但手工操作工作量很大。
+    5、优化全表扫描操作
+    1）检查有多少全表发生：
+    Select name,value from v$sysstat where name like ‘%table scan%’;
+    table scans (short tables)/ table scans (long tables)与全表扫描相关，如果table scans (long tables)的值很高，说明大部分的table access 没有经过索引查找，应该检查应用或建立索引，要确保有效的索引在正确的位置上。
+    合理的DB_FILE_MULTIBLOCK_READ_COUNT能减少table scan需要调用的IO次数，提高性能（与OS相关）。
+    2）查看full table scan操作：
+   Select sid,serial#,opname,target,to_char(start_time,'HH24:MI:SS') "start",(sofar/totalwork)*100 "percent_complete" from v$session_longops
+    通过v$session_longops里的sql_hash_value与v$sqltext关联，可以查询导致full table scan的sql。
+    6、Checkpoint
+    Checkpoint进行的操作：DBWn进行IO操作；CKPT更新数据文件头和控制文件。
+    经常进行Checkpoint的结果：减少恢复所需的时间；降低了系统运行时的性能。
+    LGWR以循环的方式将日志写到各个日志组，当一个日志组满时，oracle server必须进行一个Checkpoint，这意味着：DBWn将对应log覆盖的所有或部分脏数据块写进数据文件；CKPT更新数据文件头和控制文件。如果DBWn没有完成操作而LGWR需要同一个文件，LGWR只能等待。
+    在OLTP环境下，如果SGA很大并且checkpoint的次数不多，在Checkpoint的过程中容易出现磁盘竞争的状况，在这种情况下，经常进行Checkpoint可以减少每次Checkpoint涉及到的脏数据块的数目。
+    调节Checkpoint次数的办法：
+    增大日志文件；增加日志组以增加覆盖的时间间隔。
+    7、日志文件
+    建立大小合适的日志文件以最小化竞争；
+    提供足够的日志文件组以消除等待现象；
+    将日志文件存放在独立的、能快速访问的存储设备上（日志文件可以创建在裸设备上）。日志文件以组的方式组织管理，每个组里的日志文件的内容完全相同。
+    8、归档日志文件
+    如果选择归档模式，必须要有两个或两个以后的日志组，当从一个组切换到另一个组时，会引起两种操作：DBWn进行Checkpoint；一个日志文件进行归档。
+    归档有时候会报错：
+    ARC0：Beginning to archive log# 4 seq# 2772
+    Current log# 3 seq# 2773……
+    ARC0: Failed to archive log# 4 seq# 2772
+    ARCH: Completed to archiving log#4 seq# 2772
+    建议init参数修改如下：
+    log_archive_max_processes=2
+    #log_archive_dest = ‘/u05/prodarch’
+    log_archive_dest_1 = "location=/u05/prodarch MANDATORY’
+    log_archive_dest_state_1 = enable 
+    log_archive_dest_2 = "location=/u05/prodarch2 OPTIONAL reopen=10" （或其它目录）
+    log_archive_dest_state_2 = enable 
+    log_archive_min_succeed_dest=1
+    log_archive_dest_state_3 = DEFER
+    log_archive_dest_state_4 = DEFER
+    log_archive_dest_state_5 = DEFER
+
+
+
+
+三、优化排序操作
+    1、概念
+    服务器首先在sort_area_size指定大小的内存区域里排序，如果所需的空间超过sort_area_size，排序会在临时表空间里进行。在专用服务器模式下，排序空间在PGA中，在共享服务器模式下，排序空间在UGA中。如果没有建立large pool，UGA处于shared pool中，如果建立了large pool，UGA就处于large pool中，而PGA不在sga中，它是与每个进程对应单独存在的。
+     PGA：program global area,为单个进程（服务器进程或后台进程）保存数据和控制信息的内存区域。PGA与进程一一对应，且只能被起对应的进程读写，PGA在用户登录数据库创建会话的时候建立。
+    有关排序空间自动管理的两个参数：
+    Pga_aggregate_target: 10M-4000G，等于分配给oracle instance的所有内存减去SGA后的大小。 
+    Workarea_size_policy: auto/manual，只有Pga_aggregate_target已定义时才能设置为auto。
+    这两个参数会取代所有的*_area_size参数。
+    措施：
+    尽可能避免排序；尽可能在内存中排序；分配合适的临时空间以减少空间分配调用。
+    2、需要进行排序的操作：
+    A、创建索引；
+    B、涉及到索引维护的并行插入
+    C、order by或者group by（尽可能对索引字段排序）
+    D、Distinct
+    E、union/intersect/minus
+    F、sort-merge join
+    G、analyze命令（仅可能使用estamate而不是compute）
+    3、诊断和措施
+    Select * from v$sysstat where name like ‘%sort%’;
+    Sort(disk):要求Io去临时表空间的排序数目
+    Sort(memory)：完全在memory中完成的排序数目
+    Sort(rows)：被排序的行数合计
+    Sort（disk）/ Sort（memory）<5%,如果超过5％，增加sort_area_size的值。
+    SELECT disk.Value disk,mem.Value mem,(disk.Value/mem.Value)*100 ratio FROM v$sysstat disk,v$sysstat mem WHERE mem.NAME='sorts (memory)' AND disk.NAME='sorts (disk)';
+    4、监控临时表空间的使用情况及其配置
+    Select tablespace_name,current_users,total_extents,used_extents,extent_hits,max_used_blocks,max_sort_blocks FROM v$sort_segment ;
+    Column Description 
+    CURRENT_USERS Number of active users 
+    TOTAL_EXTENTS Total number of extents 
+    USED_EXTENTS Extents currently allocated to sorts 
+    EXTENT_HITS Number of times an unused extent was found in the pool 
+    MAX_USED_BLOCKS Maximum number of used blocks 
+    MAX_SORT_BLOCKS Maximum number of blocks used by an individual sort 
+    临时表空间的配置：
+    A、initial/next设置为sort_area_size的整数倍，允许额外的一个block作为segment的header
+    B、pctincrease=0
+    C、基于不同的排序需要建立多个临时表空间
+    D、将临时表空间文件分散到多个磁盘上
+
+
+
+四、诊断latch竞争
+    1、概念
+    Latch是简单的、低层次的序列化技术，用以保护SGA中的共享数据结构，比如并发用户列表和buffer cache里的blocks信息。一个服务器进程或后台进程在开始操作或寻找一个共享数据结构之前必须获得对应的latch，在完成以后释放latch。不必对latch本身进行优化，如果latch存在竞争，表明SGA的一部分正在经历不正常的资源使用。
+    1）Latch的作用：
+    A、序列化访问：保护SGA中的共享数据结构；保护共享内存的分配。
+    B、序列化执行：避免同时执行某些关键代码；避免互相干扰。
+    2）Latch请求的两种类型：
+    A、willing-to-wait：请求的进程经过短时间的等待后再次发出请求，直到获得latch
+    B、immediate：如果没有获得latch，请求的进程不等待，而是继续处理其他指令。
+    2、检查Latch竞争
+    检查latch free是不是主要的wait event：
+    Select * from v$system_event order by time_waited;
+    检查latch的使用情况：
+    Select * from v$latch:
+    与willing-to-wait请求有关的列：gets、misses、sleeps、wait_time、cwait_time、spin_gets
+    与immediate请求有关的列：immediate_gets、immediate_misses
+    Gets: number of successful willing-to-wait requests for a latch;
+    Misses: number of times an initial wiling-to-wait request was unsuccessful;
+    Sleeps: number of times a process waited after an initial willing-to-wait request;
+    Wait_time: number of milliseconds waited after willing-to-wait request;
+    Cwait_time: a measure of the cumulative wait time including the time spent spinning and sleeping,the overhead of context switches due to OS time slicing and page faults and interrupts;
+    Spin_gets: gets that misses first try but succeed after spinning.
+    Immediate_gets: number of successful immediate requests for each latch;
+    Immediate_misss: number of unsuccessful immediate requests for each latch;
+    一般无需调整latch，但是下列的措施是有用的：
+    A、对处于竞争中的latch做进一步的调查
+    B、如果竞争主要存在于shared pool和library cache中，可以考虑调整应用
+    C、如果进一步的调查显示需要调整shared pool和buffer cache，就进行调整
+    Select * from v$latch where name like ‘%shared pool%’ or name like ‘%library cache%’；
+    如果竞争是在shared pool或library cache上，表示下列集中情况：
+    A、不能共享的sql,应检查他们是否相似，考虑以变量代替sql中的常量：
+    Select sql_text from v$sqlarea where executions=1 order by upper(sql_text);
+    B、共享sql被重新编译，考虑library cache的大小是否需要调整：
+    SELECT sql_text,parse_calls,executions FROM v$sqlarea where parse_calls>5;
+    C、library cache不够大。
+
+
+
+五、Rollback(undo) Segment 优化
+    1、概念
+    Transaction以轮循的方式使用rollback segment里的extent，当前所在的extent满时就移动到下一个extent。可能有多个transaction同时向同一个extent写数据，但一个rollback segment block中只能保存一个transaction的数据。
+    Oracle 在每个Rollback segment header中保存了一个transaction table，包括了每个rollback segment中包含的事务信息，rollback segment header的活动控制了向rollbak segment写入被修改的数据。rollback segment header是经常被修改的数据库块，因此它应该被长时间留在buffer cache中，为了避免在transaction table产生竞争导致性能下降，应有多个rollback segment或应尽量使用oracle server 自动管理的rollback segment。
+    2、诊断rollback segment header的竞争
+    如果rollback segment 由手工管理，下列措施诊断rollback segment header的竞争
+    SELECT class,count FROM v$waitstat WHERE class LIKE '%undo%' ;
+    SELECT Sum(Value) sum FROM v$sysstat WHERE NAME IN ('db block gets','consistent gets');
+    任何类型的等待次数（count）与总请求数(sum)的比率，不能超过1％。
+    或
+    select sum(waits)*100/sum(gets) "Ratio", sum(waits) "Waits", sum(gets) "Gets" from v$rollstat;
+    waits的汇总数与gets的汇总数的比率应低于1％，如果超过1％，应创建更多的rollback segment。
+    下列字段数值如果大于0，则表明在rollback segment header上存在竞争：
+    A、v$rollstat 中的waits
+    B、v$waitstat中的undo header行
+    C、v$system_event中的undo segment tx slot事件
+    3、消耗更少的rollback segment
+    1）如果是删除表里所有的数据，尽可能使用trauncate而不是delete。
+    2）在应用中允许用户有规律的提交，尽可能不用长事务。
+    3）? Import
+    – Set COMMIT = Y
+    – Size the set of rows with BUFFER
+    ? Export: Set CONSISTENT=N
+    ? SQL*Loader: Set the COMMIT intervals with ROWS
+    4、小回滚段可能出现的问题
+    A、事务由于缺少回滚空间失败
+    B、由于下列原因导致的“Snapshot too old”问题：
+    Block里的事务列表被刷新，block里的SCN比列表Interested Transaction List（ITL）里起始事务的SCN更新；
+    Rollback segment header里的Transaction slot被重用；
+    回滚数据已经被重写；
+    5、9i的自动回滚管理
+    Undo_managment指定了回滚空间的管理方式：Auto：自动管理；Manual：手工管理回滚段。
+    Undo_retention指定了回滚数据的保留期限；
+    Undo_tablespace指定了被使用的回滚表空间；
+    Oracle自动管理的表空间可以在常见数据库的时候创建，也可以单独建立。回滚表空间可以相互转换（switch），但在某一时刻只能有一个回滚表空间处于活动状态。回滚表空间处于非活动状态时可以删除，如果有对处于被删除回滚表空间里的已提交事务的查询时，oracle会返回一个错误。
+    估计undo tablespace大小的公式：
+    Undo space = (undo_retention * (undo blocks per second * db_block_size)) + db_block_size;
+    可以使用下列的sql设定undo_retention和undo tablespace：
+    select (rd*(ups*overhead)+overhead) "bytes" from (select value rd from v$parameter where name ='undo_retention'),(select (sum(undoblks)/sum(((end_time-begin_time)*10800))) ups from v$undostat),(select value overhead from v$parameter where name='db_block_size');
+    其中：
+    Rd：undo_retention设置的时间；
+    Ups：undo blocks per second；
+    Overhead：rollback segment header；
+
+六、Lock Contention
+    1、概念
+    DML事务使用row-level locks,查询不会锁定数据。锁有两种模式：exlusive、share。
+    锁的类型：
+    ? DML or data locks:
+    – Table-level locks（TM）
+    – Row-level locks（TX）
+    ? DDL or dictionary locks
+    一个transaction至少获得两个锁：一个共享的表锁，一个专有的行锁。Oracle server将所有的锁维护在一个队列里，队列跟踪了等待锁的用户、申请锁的类型以及用户的顺序信息。
+    Lock在下列情况会释放：commit；rollback；terminated（此时由pmon清理locks）。Quiesced database：一个数据库如果除了sys和system之外没有其他活动session，这个数据库即处于quiesced状态。活动session是指这个session当前处于一个transaction中，或一个查询中，一个fetch中，或正占有某种共享资源。
+    2、可能引起lock contention的原因
+    不必要的高层次的锁；
+    长时间运行的transaction；
+    未提交的修改；
+    其他产品施加的高层次的锁。
+    解决lock contention的方法：锁的拥有者提交或回滚事务；杀死用户会话。
+    3、死锁
+    Oracle自动检测和解决死锁，方法是通过回滚引起死锁的语句（statement），但是这条语句对应的transaction并没有回滚，因此当收到死锁的错误信息后，应该去回滚改transaction的剩余部分。
+
+
+
+七、应用优化
+    1、概念
+    为了提高性能，可以使用下列数据访问方法：
+    A、Clusters
+    B、Indexes
+    -B-tree（normal or reverse key）
+    -bitmap
+    -function-based
+    C、Index-organized tables
+    D、Materialized views
+    索引的层次越多，效率越低，如果索引中含有许多已删除的行，这个索引也会变得低效，如果索引数据的15％已经被删除，应该考虑重建索引。
+    2、应用问题
+    A、使用可声明的约束而不是通过代码限制
+    B、代码共享
+    C、使用绑定变量而不是文字来优化共享sql
+    D、调整cursor_sharing的值（EXACT/SIMILAR/FORCE）
+    八、提升block的效率
+    1、避免动态分配的缺陷
+    创建本地管理的表空间；
+    合理设置segment的大小；
+    监控将要扩展的segment：
+    SELECT owner, table_name, blocks, empty_blocks FROM dba_tables WHERE empty_blocks / (blocks+empty_blocks) < .1;
+    2、high water mark
+    记录在segment header block中，在segment创建的时候设定在segment的起始位置，当记录被插入的时候以5个block的增量增加，truncate可以重设high water mark的位置，但delete不能。
+    在full table scan中，oracle会读取high water mark以下的所有的数据块，所以high water mark以上的块也许会浪费存储空间，但不会降低性能。
+    可以通过下列方法收回表中high water mark以上的块：
+    Alter table_name deallocate unused；
+    对于high water mark以下的块：
+    使用import/export工具：export数据；drop或truncate表；import数据。或者利用alter table tanle_name move命令去移动表的存储位置（此时需要重建索引）。
+    3、表统计
+    用analyize命令生成表统计，然后到dba_table查询相关信息。
+    ANALYZE TABLE ndls.t_wh_shipping_bill COMPUTE STATISTICS;
+    SELECT num_rows, blocks, empty_blocks as empty,avg_space, chain_cnt, avg_row_len FROM dba_tables WHERE owner ='NDLS' AND table_name='T_WH_SHIPPING_BILL';
+    Columns Description 
+    NUM_ROWS Number of rows in the table 
+    BLOCKS Number of blocks below the table high-water mark 
+    EMPTY_BLOCKS Number of blocks above the table high-water mark 
+    AVG_SPACE Average free space in bytes in the blocks below high-water mark
+    AVG_ROW_LEN Average row length, including row overhead 
+    CHAIN_CNT Number of chained or migrated rows in the table 
+    4、block size
+    通过下列方法可以最小化block的访问次数：
+    使用更大的block size；紧密压缩行；阻止行镜像。后两者存在冲突，越多的行被压缩在一个block里，越容易产生镜像。Block size 在数据库创建的时候设定，不能被轻易改变，是读取数据文件时最小的IO单元，大小范围是2K－64K，应该设置成OS块的整数倍，小于或等于OS IO时能读取的存储区域。
+    较小的block size的优点：极少block竞争；有利于较小的行和随机访问。缺点是存在相当高的成本，每个block的行数更少，可能需要读取更多的index块。Block size的选择影响系统的性能，在一个OLTP环境中，较小的block size更合适，而在DSS环境中，适宜选择较大的block size
+
+
+
+5、PCTFREE、PCTUSED
+    1）PCTFREE、PCTUSED使你能控制一个segment里所有数据块里free space的使用。
+    PCTFREE：一个数据块保留的用于块里已有记录的可能更新的自由空间占block size的最小比例。
+    PCTUSED：在新记录被插入block里之前这个block可以用于存储行数据和其他信息的空间所占的最小比率。
+    2）这两个参数的使用
+    如果创建表的时候指定pctfree＝20％，oracle会在这个表的data segment的每个block都保留20％的空间用于已有记录的更新。Block的已使用空间上升到整个block size的80％时，这个block将移出free list；在提交了delete、update之后，oracle server处理这条语句并检查对应block的已使用空间是否低于PCTUSED，如果是，则这个block放进free list。
+    3）PCTFREE、PCTUSED的设定
+    ? PCTFREE
+    – Default 10
+    – Zero if no UPDATE activity
+    – PCTFREE = 100 × upd / (average row length)
+    ? PCTUSED
+    – Default 40
+    – Set if rows deleted
+    – PCTUSED = 100 – PCTFREE – 100 × rows × (average row length) / blocksize
+    其中，upd ： the average amount added by updates, in bytes。This is determined by subtracting the average row length of intercurrent average row length;
+    average row length：在运行了analyize命令之后，这个值可以从dba_tables中的avg_row_len列中获得。
+    rows ： the number of rows to be deleted before free list maintenance occurs。
+    4）Delete、update可以增加block的自由空间，但是释放出来的空间有可能是不连续的，oracle在下列情况下会对碎片进行整理：一个block有足够的自由空间容纳row piece，但是由于每个碎片都较小以至这个row piece不能存放在一个连续的section中。
+    6、Migration和Chaining
+    1）如果一行的数据太大以至一个单独的block容纳不下，会产生两种现象：
+    A、Chaining：行数据太大以至一个空block容纳不下，oracle会将这一行的数据存放在一个或多个block 组成的block chain中，insert、update都可能导致这个问题，在某些情况下row chaining是不能避免的。
+    B、Migration：一次update操作可能导致行数据增大，以至它所在的block容纳不下，oracle server会去寻找一个有足够自由空间容纳整行数据的block，如果这样的block存在，oracle server把整行移到新的block，在原位置保存一个指向新存放位置的镜像行，镜像行的rowid和原来的rowid一致。
+    Chaining、Migration的弊端：insert、update的性能降低，索引查询增加了IO次数。
+    2）检测migration和chaining：
+    Analyize table table_name compute statistics；
+    Select num_rows,chain_cnt from dba_tables where table_name=’...’;
+    查询镜像行：
+    Analyize table table_name list chained rows；
+    Select owner_name,table_name,head_rowid from chained_rows where table_name=’...’;
+    产生Migration的原因可能是由于PCTFREE设置的太低以至没有保留足够的空间用于更新。
+    可以通过增加PCTFREE的值避免行镜像产生。
+    3）消除镜像行的步骤：
+    运行analyize table ... list chained rows;
+    复制镜像行到另一个表tmp；
+    从源表中删除这些行；
+    从tmp中将这些行插回到源表中。
+    脚本：
+    /* Get the name of the table with migrated rows */
+    accept table_name prompt ’Enter the name of the table with migrated rows: ’
+    /* Clean up from last execution */
+    set echo off
+    drop table migrated_rows;
+    drop table chained_rows;
+    /* Create the CHAINED_ROWS table */
+    @?/rdbms/admin/utlchain
+    set echo on
+    spool fix_mig
+    /* List the chained & migrated rows */
+    analyze table &table_name list chained rows;
+    /* Copy the chained/migrated rows to another table */
+    create table migrated_rows as
+    select orig.* from &table_name orig, chained_rows cr
+    where orig.rowid = cr.head_rowid
+    and cr.table_name = upper(’&table_name’);
+    /* Delete the chained/migrated rows from the original table */
+    delete from &table_name
+    where rowid in ( select head_rowid from chained_rows );
+    /* Copy the chained/migrated rows back into the original table */
+    insert into &table_name select * from migrated_rows;
+    spool off
+    使用这个脚本时，必须将涉及到的外键约束去掉。
+    7、索引重组
+    在一个不稳定的表上建索引会影响性能，一个索引block只有完全空时才能进入free list，即使一个索引block里只含有一个条目，它也必须被维护，因此索引需要进行阶段性的重建。
+    1）检查索引是否需要重组
+    A、收集一个index的使用统计
+    ANALYZE INDEX acct_no_idx VALIDATE STRUCTURE;
+    B、查看收集的统计数据
+    SELECT NAME,(DEL_LF_ROWS_LEN/LF_ROWS_LEN) * 100 AS index_usage FROM index_stats;
+    Column Description 
+    LF_ROWS Number of values currently in the index 
+    LF_ROWS_LEN Sum in bytes of the length of all values 
+    DEL_LF_ROWS Number of values deleted from the index 
+    DEL_LF_ROWS_LEN Length of all deleted values 
+    C、如果浪费超过20％则索引需要重建
+    ALTER INDEX acct_no_idx REBUILD;
+    D、或者对索引进行整理
+    Alter index acct_no_idx coalesce;
+    2）标记未使用的索引
+    A、 开始监测索引的使用
+    Alter index hr.emp_name_ix monitoring usage;
+    B、 停止监测索引的使用
+    Alter index hr.emp_name_ix nomonitoring usage;
+    C、 查询索引的使用情况
+    Select index_name,used from v$object_usage;
+    删除未使用过的索引，可以降低DML操作的成本，从而提升系统性能。
+    为了尽可能经济的利用block，应对存在较多空block、镜像行的表进行重建，对建立不稳定表上的索引应有规律的进行重建，并尽可能创建本地管理的表空间。
+
+
+九、SQL优化
+    1、优化器模式
+    Oracle9i有两种优化器模式可以选择：
+    ? Rule-based:
+    – Uses a ranking system
+    – Syntax- and data dictionary–driven
+    ? Cost-based:
+    – Chooses least-cost path
+    – Statistics-driven
+    Rule-based模式满足向后兼容，而Cost-based模式中的成本大部分来自于逻辑读的次数，推荐使用Cost-based模式。
+    2、固定optimizer plan
+    1）概念
+    对于每一个查询，optimizer都会准备一个定义了操作执行顺序和方法的操作树（执行计划），oracle server根据这个执行计划执行语句。通过固定执行计划，可以强制应用通过一种理想的方式访问数据，并且一个稳定的执行计划可以经历数据库的变化而保持不变。固定执行计划通过创建stored outline实现，outline使用cost-based的optimizer，因为其由一系列的hints组成。
+    执行计划的固定依赖于当判定一个查询是否存在stored outline时查询语句是否完全一致，与判定shared pool里一个执行计划是否可以重用时的匹配方式是一致的。
+    Outline被保存在outln schema中。
+    2） 创建stored outline
+    alter session set CREATE_STORED_OUTLINES = train;
+    create or replace OUTLINE co_cl_join
+    FOR CATEGORY train ON
+    select co.crs_id, ...
+    from courses co，classes cl
+    where co.crs_id = cl.crs_id;
+    stored outline通过category组织，相同的sql语句可以在多个category同时拥有stored outline，如果categoey没有指定，缺省是default category。
+    当CREATE_STORED_OUTLINES等于true或category名时，oracle会为所有被执行的sql语句创建stored outline，也可以通过create outline手工创建。
+    3） 使用stored outline
+    将USE_STORED_OUTLINES设置为true或category名。
+    alter session set USE_STORED_OUTLINES = train;
+    当为一个查询寻找stored outline时，查询语句与stored outline里的语句必须完全一致，在outline里的hints也必须在查询语句中出现。
+    3、private outline
+    Private outline是当前保存的stored outline的副本，可以被编辑而不影响正在运行的系统，一个private outline只能被当前session看到，它的数据被保存在当前被解析的schema里。，知道显示的将其公布。
+    当USE_PRIVATE_OUTLINES=TRUE时，一个已有outline的sql被提交时，optimizer会检查是否存在private outline，如果不存在，optimizer就不使用optimizer编译语句，而不会去检查公布的stored outline。
+    4、在sql中使用hints
+    Create index gen_idx on customers(cust_gender);
+    Select /*+ index(customers gen_idx)*/
+    Cust_last_name,cust_street_address,cust_postal_code
+    From sh.customers where upper(gender)=’M’;
+    5、EXPLAIN PLAN
+    可以不通过tracing，需要建立plan_table表：
+    Sql>@oracle_home/rdbms/admin/utlxplan;
+    建立explain plan：
+    Explain plan for select last_name from hr.emp;
+    查询plan_table中的explain plan，可以直接查询，也可以通过脚本utlxplx.sql(隐藏并行查询信息)、utlxplp.sql（显示并行查询信息）查询。
+    6、管理统计信息
+    利用analyize命令收集或删除信息。
+    参数：
+    Compute：统计精确的数据；
+    Estimate：估计的统计数据。
+    各类统计数据的位置：
+    表：dba_tables;
+    索引：dba_indexes;
+    列：user_tab_col_statistics;
+    柱状图（histogram）详细的描述了一个特定列中数据的分布情况，可以通过analyize table ... for columns... 命令创建，保存在dba_histogram/dba_tab_histograms中。
+
+
+
+十、操作系统优化和使用资源管理器
+    1、操作系统优化
+    1）概念
+    操作系统优化时应该考虑的因素有：内存的使用；Cpu的使用；IO级别；网络流量。各个因素互相影响，正确的优化次序是内存、IO、CPU。
+    操作系统使用了虚拟内存的概念，虚拟内存使每个应用感觉自己是使用内存的唯一的应用，每个应用都看到地址从0开始的单独的一块内存，虚拟内存被分成4K或8K的page，操作系统通过MMU（memory management unit）将这些page与物理内存映射起来，这个映射关系通过page table控制。
+    Raw device是没有文件结构或目录结构的磁盘或磁盘分区，由于它忽略了操作系统缓存，在某些情况下可以显著提升性能，但是在windows NT下，由于操作系统IO操作本身不使用文件系统缓存，所以raw device不能显示性能上的优点。
+    2）Guideline
+    CPU的最高使用率：90％；
+    OS/USER进程数之比：40/60；
+    各个CPU的负载应该大致均衡。
+    3）服务器安全性检查
+    A、检查UNIX系统用户口令
+    检查：/etc/passwd、/etc/shadow，UNIX密码采用了shadow机制，安全性能高
+    建议：参考UNIX命令passwd，修改/etc/default/passwd文件的某些设置如MAXWEEKS、MINWEEKS、PASSLENGTH使口令修改更加合理化。
+    建议：定期更改UNIX系统的如下用户口令：
+    root、oraprod、applprod、appprod
+    B、检查 Remote Login
+    启动了rlogin，服务器数据库a、数据库b、数据库c，终端console1、console2、console3及T3形成相互非常信任的关系，用户只要拥有一个服务器的超级权限就可以rlogin到.rhosts指明的任一主机而无需要口令。
+    建议：非常不安全，参考UNIX命令rlogin和/目录下的文件.rhosts。在正式环境服务器和测试环境服务器之间不要建立这种远程信任的机制。
+    C、检查FTP服务
+    检查可以FTP到服务器的用户（/etc/ftpusers），注释了root用户，就是说用户可以用root权限FTP到服务器上。权限太大。
+    建议：把这种权力取消，将/etc/ftpusers中root的注释符号（#）去掉，在列表中添加oraprod、applprod、appprod等用户使之不能FTP服务器。必要时（如上传PATCH时）再打开applprod的FTP权限。
+    D、建议：UNIX系统管理员定期检查/var/adm下的messages、sulog；/etc/syslog.conf 等信息。检查是否有非法用户登陆UNIX。
+    建议：与UNIX工程师探讨更好的监控方式
+    4）数据库与应用产品安全性检查
+    A、建议：修改oracle用户根目录下的.profile文件，修改该文件的权限为500。即使得用户登陆时并不执行和数据库或应用相关的环境变量，增加安全性。
+    B、检查数据库DBA权限的用户密码和应用系统用户密码：SYSTEM、APPS密码都已经改变，SYS密码还是初始安装密码Change_on_install
+    建议：立即修改SYS用户密码，定期更改APPS、SYSTEM、SYS密码。
+    C、定期检查并清除$ORACLE_HOME/admin/bdump目录下的alert_PROD.log文件和后台进程trace文件。定期清除$ORACLE_HOME/admin/udump目录下的trc文件。
+    D、建议：给应用产品登陆的用户设置口令过期限制，如口令访问次数限制或时间（天数）限制。
+    建议：不要给使用应用产品的用户共享用户名和口令，每个用户分配一个应用产品用户名。
+    建议：对有应用系统管理员权限的用户登记，不适合有系统管理员权限的用户要把权限回收，统一管理。
+    E、定期检查并清除与Apache Server有关的log文件，目录为:
+    /u01/prodora/iAS/Apache/Apache/logs/acccess_log、error_log
+    /u01/prodora/iAS/Apache/Jserv/logs/jserv.log、mod_jserv.log
+    F、定期检查清除listener、tnsname的log文件，文件存放在:
+    /u01/prodora/8.0.6/network/admin/apps_prod.log、
+    /u01/proddb/8.1.7/network/admin/prod.log
+    /u01/proddb/8.1.7/network/log/listener.log、sqlnet.log…
+    G、数据库控制文件做多个镜像，放在多个磁盘位置，提高安全性。
+    5）网络安全性检查
+    检查$ORACLE_HOME/dbs/initPROD.ora文件
+    #remote_login_passwordfile=EXCLUSIVE
+    设置为REMOTE_LOGIN_PASSWORDFILE=NONE，不允许远程客户用INTERNAL方式登陆。
+    2、资源管理器（Resource Manager）
+    通过资源管理器可以管理混合工作负载，控制系统性能。数据库资源管理器包括：
+    ? Resource plans：包括 resource plan directives, 它指定了被分配到各个 resource consumer group的资源。
+    ? Resource consumer groups：定义了具有类似资源使用需求的一组用户。
+    ? Resource plan directives：包括下列内容:为consumer groups 或 subplans 指定resource plans；在各个 consumer groups 或资源计划的subplans 分配资源。
+
+
+
+在较长时间的与oracle的交往中，每个DBA特别是一些大侠都有各种各样的完成各种用途的脚本工具，这样很方便的很快捷的完成了日常的工作，下面~
+把我常用的一部分展现给大家，此篇主要侧重于数据库管理，这些脚本都经过严格测试。
+ 1、 表空间统计
+ A、    脚本说明：
+这是我最常用的一个脚本，用它可以显示出数据库中所有表空间的状态，如表空间的大小、已使用空间、使用的百分比、空闲空间数及现在表空间的最
+大块是多大。
+B、脚本原文:
+SELECT upper(f.tablespace_name) "表空间名",
+       d.Tot_grootte_Mb "表空间大小(M)",
+       d.Tot_grootte_Mb - f.total_bytes "已使用空间(M)",
+       to_char(round((d.Tot_grootte_Mb - f.total_bytes) / d.Tot_grootte_Mb * 100,2),'990.99') "使用比",
+       f.total_bytes "空闲空间(M)",
+       f.max_bytes "最大块(M)"
+ FROM
+    (SELECT tablespace_name,
+            round(SUM(bytes)/(1024*1024),2) total_bytes,
+            round(MAX(bytes)/(1024*1024),2) max_bytes
+      FROM sys.dba_free_space
+     GROUP BY tablespace_name) f,
+    (SELECT dd.tablespace_name, round(SUM(dd.bytes)/(1024*1024),2) Tot_grootte_Mb
+      FROM   sys.dba_data_files dd
+      GROUP BY dd.tablespace_name) d
+WHERE d.tablespace_name = f.tablespace_name
+ORDER BY 4 DESC;
+
+2、  查看无法扩展的段
+A、  脚本说明：
+ORACLE对一个段比如表段或索引无法扩展时，取决的并不是表空间中剩余的空间是多少，而是取于这些剩余空间中最大的块是否够表比索引的“NEXT”
+值大，所以有时一个表空间剩余几个G的空闲空间，在你使用时ORACLE还是提示某个表或索引无法扩展，就是由于这一点，这时说明空间的碎片太多了~
+。这个脚本是找出无法扩展的段的一些信息。
+B、脚本原文：
+SELECT segment_name,
+             segment_type,
+             owner,
+             a.tablespace_name "tablespacename",
+             initial_extent/1024 "inital_extent(K)",
+             next_extent/1024 "next_extent(K)",
+             pct_increase,
+             b.bytes/1024 "tablespace max free space(K)",
+             b.sum_bytes/1024 "tablespace total free space(K)"
+  FROM dba_segments a,
+       (SELECT tablespace_name,MAX(bytes) bytes,SUM(bytes) sum_bytes FROM dba_free_space GROUP BY tablespace_name) b
+ WHERE a.tablespace_name=b.tablespace_name
+   AND next_extent>b.bytes
+ ORDER BY 4,3,1;
+
+3、  查看段(表段、索引段)所使用空间的大小
+A、  脚本说明：
+有时你可能想知道一个表或一个索引占用多少M的空间，这个脚本就是满足你的要求的，把<>中的内容替换一下就可以了。
+B、脚本原文：
+SELECT owner,
+              segment_name,
+              SUM(bytes)/1024/1024
+    FROM dba_segments
+   WHERE owner=<segment owner>
+        And segment_name=<your table or index name>
+  GROUP BY owner,segment_name
+  ORDER BY 3 DESC;
+
+4、  查看数据库中的表锁
+A、  脚本说明：
+ 这方面的语句的样式是很多的，各式一样，不过我认为这个是最实用的，不信你就用一下，无需多说，锁是每个DBA一定都涉及过的内容，当你相知道
+某个表被哪个session锁定了，你就用到了这个脚本。
+B、脚本原文：
+  SELECT A.OWNER,
+               A.OBJECT_NAME,
+               B.XIDUSN,
+              B.XIDSLOT,
+              B.XIDSQN,
+              B.SESSION_ID,
+              B.ORACLE_USERNAME,
+              B.OS_USER_NAME,
+              B.PROCESS,
+              B.LOCKED_MODE,
+              C.MACHINE,
+              C.STATUS,
+              C.SERVER,
+              C.SID,
+              C.SERIAL#,
+              C.PROGRAM
+    FROM ALL_OBJECTS A,
+         V$LOCKED_OBJECT B,
+         SYS.GV_$SESSION C
+   WHERE ( A.OBJECT_ID = B.OBJECT_ID )
+     AND (B.PROCESS = C.PROCESS )
+   --  AND
+   ORDER BY 1,2   ;
+
+5、  处理存储过程被锁
+A、  脚本说明：
+   实际过程中可能你要重新编译某个存储过程理总是处于等待状态，最后会报无法锁定对象，这时你就可以用这个脚本找到锁定过程的那个sid，需要
+注意的是查v$access这个视图本来就很慢，需要一些布耐心。
+B、脚本原文：
+SELECT * FROM V$ACCESS
+ WHERE owner=<object owner>
+And object<procedure name>
+
+6、  查看回滚段状态
+A、  脚本说明
+这也是DBA经常使用的脚本，因为回滚段是online还是full是他们的关怀之列嘛
+    B、SELECT a.segment_name,b.status
+  FROM Dba_Rollback_Segs a,
+        v$rollstat b
+        WHERE a.segment_id=b.usn
+         ORDER BY 2
+
+7、  看哪些session正在使用哪些回滚段
+      A、 脚本说明：
+ 当你发现一个回滚段处理full状态，你想使它变回online状态，这时你便会用alter rollback segment rbs_seg_name shrink,可很多时侯确shrink不
+回来，主要是由于某个session在用，这时你就用到了这个脚本，找到了sid的serial#余下的事就不用我说了吧。
+B、脚本原文
+ SELECT  r.name 回滚段名,
+  s.sid,
+  s.serial#,
+  s.username 用户名,
+  s.status,
+  t.cr_get,
+  t.phy_io,
+  t.used_ublk,
+  t.noundo,
+  substr(s.program, 1, 78) 操作程序
+FROM   sys.v_$session s,sys.v_$transaction t,sys.v_$rollname r
+WHERE  t.addr = s.taddr and t.xidusn = r.usn
+ -- AND r.NAME IN ('ZHYZ_RBS')
+ORDER  BY t.cr_get,t.phy_io
+
+8、  查看正在使用临时段的session
+           A、 脚本说明：
+许多的时侯你在查看哪些段无法扩展时，回显的结果是临时段，或你做表空间统计时发现临段表空间的可用空间几乎为0,这时按oracle的说法是你只有
+重新启动数据库才能回收这部分空间。实际过程中没那么复杂，使用以下这段脚本把占用临时段的session杀掉，然后用alter tablespace temp coale
+sce;这个语句就把temp表空间的空间回收回来了。
+B、 脚本原文
+
+SELECT username,
+       sid,
+       serial#,
+       sql_address,
+       machine,
+       program,
+       tablespace,
+       segtype,
+       contents
+  FROM v$session se,
+       v$sort_usage su
+ WHERE se.saddr=su.session_addr
+
+
+
+Oracle专家调优秘密 
+在过去的十年中， Oracle 已经成为世界上最专业的数据库之一。对于 IT 专家来说，就是要确保利用 Oracle 的强大特性来提高他们公司的生产力。最有效的方法之一是通过 Oracle 调优。它有大量的调整参数和技术来改进你的 Oracle 数据库的性能。 
+Oracle 调优是一个复杂的主题。关于调优可以写整整一本书，不过，为了改善 Oracle 数据库的性能，有一些基本的概念是每个 Oracle DBA 都应该遵从的。 
+　　 在这篇简介中，我们将简要地介绍以下的 Oracle 主题： 
+　　-- 外部调整：我们应该记住 Oracle 并不是单独运行的。因此我们将查看一下通过调整 Oracle 服务器以得到高的性能。 
+　　--Row re-sequencing 以减少磁盘 I/O ：我们应该懂得 Oracle 调优最重要的目标是减少 I/O 。 
+　　--Oracle SQL 调整。 Oracle SQL 调整是 Oracle 调整中最重要的领域之一，只要通过一些简单的 SQL 调优规则就可以大幅度地提升 SQL 语句的性能，这是一点都不奇怪的。 
+　　-- 调整 Oracle 排序：排序对于 Oracle 性能也是有很大影响的。 
+　　-- 调整 Oracle 的竞争：表和索引的参数设置对于 UPDATE 和 INSERT 的性能有很大的影响。 
+
+　　 我们首先从调整 Oracle 外部的环境开始。如果内存和 CPU 的资源不足的话，任何的 Oracle 调整都是没有帮助的。 
+
+　　外部的性能问题 
+　　
+　　Oracle 并不是单独运行的。 Oracle 数据库的性能和外部的环境有很大的关系。这些外部的条件包括有： 
+　　 ． CPU--CPU 资源的不足令查询变慢。当查询超过了 Oracle 服务器的 CPU 性能时，你的数据库性能就受到 CPU 的限制。 
+　　 ．内存 -- 可用于 Oralce 的内存数量也会影响 SQL 的性能，特别是在数据缓冲和内存排序方面。 
+　　 ．网络 -- 大量的 Net8 通信令 SQL 的性能变慢。 
+　　 许多新手都错误的认为应该首先调整 Oracle 数据库，而不是先确认外部资源是否足够。实际上，如果外部环境出现瓶颈，再多的 Oracle 调整都是没有帮助的。 
+　　 在检查 Oracle 的外部环境时，有两个方面是需要注意的： 
+　　1 、当运行队列的数目超过服务器的 CPU 数量时，服务器的性能就会受到 CPU 的限制。补救的方法是为服务器增加额外的 CPU 或者关闭需要很多处理资源的组件，例如 Oracle Parallel Query 。 
+　　2 、内存分页。当内存分页时，内存容量已经不足，而内存页是与磁盘上的交换区进行交互的。补救的方法是增加更多的内存，减少 Oracle SGA 的大小，或者关闭 Oracle 的多线程服务器。 
+　　 可以使用各种标准的服务器工具来得到服务器的统计数据，例如 vmstat,glance,top 和 sar 。 DBA 的目标是确保数据库服务器拥有足够的 CPU 和内存资源来处理 Oracle 的请求。 
+　　 以下让我们来看一下 Oracle 的 row-resequencing 是如何能够极大地减少磁盘 I/O 的。 
+
+　　Row-resequencing （行的重新排序） 
+　　 
+　　就象我们上面提到的，有经验的 Oracle DBA 都知道 I/O 是响应时间的最大组成部分。其中磁盘 I/O 特别厉害，因为当 Oracle 由磁盘上的一个数据文件得到一个数据块时，读的进程就必须等待物理 I/O 操作完成。磁盘操作要比数据缓冲慢 10,000 倍。因此，如果可以令 I/O 最小化，或者减少由于磁盘上的文件竞争而带来的瓶颈，就可以大大地改善 Oracle 数据库的性能。 
+　　 如果系统响应很慢，通过减少磁盘 I/O 就可以有一个很快的改善。如果在一个事务中通过按一定的范围搜索 primary-key 索引来访问表，那么重新以 CTAS 的方法组织表将是你减少 I/O 的首要策略。通过在物理上将行排序为和 primary-key 索引一样的顺序，就可以加快获得数据的速度。 
+　　 就象磁盘的负载平衡一样，行的重新排序也是很简单的，而且也很快。通过与其它的 DBA 管理技巧一起使用，就可以在高 I/O 的系统中大大地减少响应的时间。 
+　　 在高容量的在线事务处理环境中（ online transaction processing ， OLTP ），数据是由一个 primary 索引得到的，重新排序表格的行就可以令连续块的顺序和它们的 primary 索引一样，这样就可以在索引驱动的表格查询中，减少物理 I/O 并且改善响应时间。这个技巧仅在应用选择多行的时候有用，或者在使用索引范围搜索和应用发出多个查询来得到连续的 key 时有效。对于随机的唯一 primary-key （主键）的访问将不会由行重新排序中得到好处。 
+　　 让我们看一下它是如何工作的。考虑以下的一个 SQL 的查询，它使用一个索引来得到 100 行： 
+selectsalaryfromemployeewherelast_name like 'B%'; 
+这个查询将会使用 last_name_index ，搜索其中的每一行来得到目标行。这个查询将会至少使用 100 次物理磁盘的读取，因为 employee 的行存放在不同的数据块中。 
+　　 不过，如果表中的行已经重新排序为和 last_name_index 的一样，同样的查询又会怎样处理呢？我们可以看到这个查询只需要三次的磁盘 I/O 就读完全部 100 个员工的资料（一次用作索引的读取，两次用作数据块的读取），减少了 97 次的块读取。 
+　　 重新排序带来的性能改善的程度在于在你开始的时候行的乱序性如何，以及你需要由序列中访问多少行。至于一个表中的行与索引的排序键的匹配程度，可以查看数据字典中的 dba_indexes 和 dba_tables 视图得到。 
+　　 在 dba_indexes 的视图中，查看 clustering_factor 列。如果 clustering_factor 的值和表中的块数目大致一样，那么你的表和索引的顺序是一样的。不过，如果 clustering_factor 的值接近表中的行数目，那就表明表格中的行和索引的顺序是不一样的。 
+　　 行重新排序的作用是不可以小看的。在需要进行大范围的索引搜索的大表中，行重新排序可以令查询的性能提高三倍。 
+　　 一旦你已经决定重新排序表中的行，你可以使用以下的工具之一来重新组织表格。 
+　　. 使用 Oracle 的 Create Table As Select (CTAS) 语法来拷贝表格 
+　　. Oracle9i 自带的表格重新组织工具 
+　　
+　　 以下，我们来看以下 SQL 语句的调优。 
+
+　　SQL 调优 
+　　Oracle 的 SQL 调优是一个复杂的主题，甚至是需要整本书来介绍 Oracle SQL 调优的细微差别。不过有一些基本的规则是每个 Oracle DBA 都需要跟从的，这些规则可以改善他们系统的性能。 SQL 调优的目标是简单的： 
+　　. 消除不必要的大表全表搜索：不必要的全表搜索导致大量不必要的 I/O ，从而拖慢整个数据库的性能。调优专家首先会根据查询返回的行数目来评价 SQL 。在一个有序的表中，如果查询返回少于 40% 的行，或者在一个无序的表中，返回少于 7% 的行，那么这个查询都可以调整为使用一个索引来代替全表搜索。对于不必要的全表搜索来说，最常见的调优方法是增加索引。可以在表中加入标准的 B 树索引，也可以加入 bitmap 和基于函数的索引。要决定是否消除一个全表搜索，你可以仔细检查索引搜索的 I/O 开销和全表搜索的开销，它们的开销和数据块的读取和可能的并行执行有关，并将两者作对比。在一些情况下，一些不必要的全表搜索的消除可以通过强制使用一个 index 来达到，只需要在 SQL 语句中加入一个索引的提示就可以了。 
+　　. 在全表搜索是一个最快的访问方法时，将小表的全表搜索放到缓存中，调优专家应该确保有一个专门的数据缓冲用作行缓冲。在 Oracle7 中，你可以使用 alter table xxx cache 语句，在 Oracle8 或以上，小表可以被强制为放到 KEEP 池中缓冲。 
+　　. 确保最优的索引使用 ：对于改善查询的速度，这是特别重要的。有时 Oracle 可以选择多个索引来进行查询，调优专家必须检查每个索引并且确保 Oracle 使用正确的索引。它还包括 bitmap 和基于函数的索引的使用。 
+　　. 确保最优的 JOIN 操作：有些查询使用 NESTED LOOP join 快一些，有些则是 HASH join 快一些，另外一些则是 sort-merge join 更快。 
+　　 这些规则看来简单，不过它们占 SQL 调优任务的 90% ，并且它们也无需完全懂得 Oracle SQL 的内部运作。以下我们来简单概览以下 Oracle SQL 的优化。 
+　　 我们首先简要查看 Oracle 的排序，并且看一看排序操作是如何影响性能的。 
+
+　　 调整 Oracle 的排序操作 
+　　 排序是 SQL 语法中一个小的方面，但很重要，在 Oracle 的调整中，它常常被忽略。当使用 create index 、 ORDER BY 或者 GROUP BY 的语句时， Oracle 数据库将会自动执行排序的操作。通常，在以下的情况下 Oracle 会进行排序的操作： 
+　　 使用 Order by 的 SQL 语句 
+　　 使用 Group by 的 SQL 语句 
+　　 在创建索引的时候 
+　　 进行 table join 时，由于现有索引的不足而导致 SQL 优化器调用 MERGE SORT 
+　　 当与 Oracle 建立起一个 session 时，在内存中就会为该 session 分配一个私有的排序区域。如果该连接是一个专用的连接 (dedicated connection) ，那么就会根据 init.ora 中 sort_area_size 参数的大小在内存中分配一个 Program Global Area (PGA) 。如果连接是通过多线程服务器建立的，那么排序的空间就在 large_pool 中分配。不幸的是，对于所有的 session ，用做排序的内存量都必须是一样的，我们不能为需要更大排序的操作分配额外的排序区域。因此，设计者必须作出一个平衡，在分配足够的排序区域以避免发生大的排序任务时出现磁盘排序（ disk sorts ）的同时，对于那些并不需要进行很大排序的任务，就会出现一些浪费。当然，当排序的空间需求超出了 sort_area_size 的大小时，这时将会在 TEMP 表空间中分页进行磁盘排序。磁盘排序要比内存排序大概慢 14,000 倍。 
+　　 上面我们已经提到，私有排序区域的大小是有 init.ora 中的 sort_area_size 参数决定的。每个排序所占用的大小由 init.ora 中的 sort_area_retained_size 参数决定。当排序不能在分配的空间中完成时，就会使用磁盘排序的方式，即在 Oracle 实例中的临时表空间中进行。 
+　　 磁盘排序的开销是很大的，有几个方面的原因。首先，和内存排序相比较，它们特别慢；而且磁盘排序会消耗临时表空间中的资源。 Oracle 还必须分配缓冲池块来保持临时表空间中的块。无论什么时候，内存排序都比磁盘排序好，磁盘排序将会令任务变慢，并且会影响 Oracle 实例的当前任务的执行。还有，过多的磁盘排序将会令 free buffer waits 的值变高，从而令其它任务的数据块由缓冲中移走。 
+　　 接着，让我们看一下 Oracle 的竞争，并且看一下表的存储参数的设置是如何影响 SQL UPDATE 和 INSERT 语句的性能的。 
+
+调整 Oracle 的竞争 
+　　Oracle 的其中一个优点时它可以管理每个表空间中的自由空间。 Oracle 负责处理表和索引的空间管理，这样就可以让我们无需懂得 Oracle 的表和索引的内部运作。不过，对于有经验的 Oracle 调优专家来说，他需要懂得 Oracle 是如何管理表的 extent 和空闲的数据块。对于调整拥有高的 insert 或者 update 的系统来说，这是非常重要的。 
+　　 要精通对象的调整，你需要懂得 freelists 和 freelist 组的行为，它们和 pctfree 及 pctused 参数的值有关。这些知识对于企业资源计划（ ERP ）的应用是特别重要的，因为在这些应用中，不正确的表设置通常是 DML 语句执行慢的原因。 
+　　 对于初学者来说，最常见的错误是认为默认的 Oracle 参数对于所有的对象都是最佳的。除非磁盘的消耗不是一个问题，否则在设置表的 pctfree 和 pctused 参数时，就必须考虑平均的行长和数据库的块大小，这样空的块才会被有效地放到 freelists 中。当这些设置不正确时，那些得到的 freelists 也是 "dead" 块，因为它们没有足够的空间来存储一行，这样将会导致明显的处理延迟。 
+Freelists 对于有效地重新使用 Oracle 表空间中的空间是很重要的，它和 pctfree 及 pctused 这两个存储参数的设置直接相关。通过将 pctused 设置为一个高的值，这时数据库就会尽快地重新使用块。不过，高性能和有效地重新使用表的块是对立的。在调整 Oracle 的表格和索引时，需要认真考虑究竟需要高性能还是有效的空间重用，并且据此来设置表的参数。以下我们来看一下这些 freelists 是如何影响 Oracle 的性能的。 
+　　 当有一个请求需要插入一行到表格中时， Oracle 就会到 freelist 中寻找一个有足够的空间来容纳一行的块。你也许知道， freelist 串是放在表格或者索引的第一个块中，这个块也被称为段头（ segment header ）。 pctfree 和 pctused 参数的唯一目的就是为了控制块如何在 freelists 中进出。虽然 freelist link 和 unlink 是简单的 Oracle 功能，不过设置 freelist link (pctused) 和 unlink (pctfree) 对 Oracle 的性能确实有影响。 
+　　 由 DBA 的基本知识知道， pctfree 参数是控制 freelist un-links 的（即将块由 freelists 中移除）。设置 pctfree=10 意味着每个块都保留 10% 的空间用作行扩展。 pctused 参数是控制 freelist re-links 的。设置 pctused=40 意味着只有在块的使用低于 40% 时才会回到表格的 freelists 中。 
+　　 许多新手对于一个块重新回到 freelists 后的处理都有些误解。其实，一旦由于一个删除的操作而令块被重新加入到 freelist 中，它将会一直保留在 freelist 中即使空间的使用超过了 60% ，只有在到达 pctfree 时才会将数据块由 freelist 中移走。 
+
+　　 表格和索引存储参数设置的要求总结 
+　　 以下的一些规则是用来设置 freelists, freelist groups, pctfree 和 pctused 存储参数的。你也知道， pctused 和 pctfree 的值是可以很容易地通过 alter table 命令修改的，一个好的 DBA 应该知道如何设置这些参数的最佳值。 
+　　 有效地使用空间和高性能之间是有矛盾的，而表格的存储参数就是控制这个方面的矛盾： 
+. 对于需要有效地重新使用空间，可以设置一个高的 pctused 值，不过副作用是需要额外的 I/O 。一个高的 pctused 值意味着相对满的块都会放到 freelist 中。因此，这些块在再次满之前只可以接受几行记录，从而导致更多的 I/O 。 
+. 追求高性能的话，可以将 pctused 设置为一个低的值，这意味着 Oracle 不会将数据块放到 freelists 中直到它几乎是空的。那么块将可以在满之前接收更多的行，因此可以减少插入操作的 I/O 。要记住 Oracle 扩展新块的性能要比重新使用现有的块高。对于 Oracle 来说，扩展一个表比管理 freelists 消耗更少的资源。 
+　　 让我们来回顾一下设置对象存储参数的一些常见规则： 
+　　 ．经常将 pctused 设置为可以接收一条新行。对于不能接受一行的 free blocks 对于我们来说是没有用的。如果这样做，将会令 Oracle 的性能变慢，因为 Oracle 将在扩展表来得到一个空的块之前，企图读取 5 个 "dead" 的 free block 。 
+　　 ．表格中 chained rows 的出现意味着 pctfree 太低或者是 db_block_size 太少。在很多情况下， RAW 和 LONG RAW 列都很巨大，以至超过了 Oracle 的最大块的大小，这时 chained rows 是不可以避免的。 
+　　 ．如果一个表有同时插入的 SQL 语句，那么它需要有同时删除的语句。运行单一个一个清除的工作将会把全部的空闲块放到一个 freelist 中，而没有其它包含有任何空闲块的 freelists 出现。 
+　　 ． freelist 参数应该设置为表格同时更新的最大值。例如，如果在任何时候，某个表最多有 20 个用户执行插入的操作，那么该表的参数应该设置为 freelists=20 。 
+　　 应记住的是 freelist groups 参数的值只是对于 Oracle Parallel Server 和 Real Application Clusters 才是有用的。对于这类 Oracle ， freelist groups 应该设置为访问该表格的 Oracle Parallel Server 实例的数目。
+
+
